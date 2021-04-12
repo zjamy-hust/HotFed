@@ -7,7 +7,7 @@ import torch.nn as nn
 import torch.nn.parallel
 import torch.backends.cudnn as cudnn
 import torch.optim
-import torch.utils.data
+from torch.utils.data import DataLoader, Dataset
 import torchvision.transforms as transforms
 import torchvision.datasets as datasets
 import pretrain_resnet_cifar as models
@@ -49,8 +49,25 @@ parser.add_argument('-e', '--evaluate', dest='evaluate', action='store_true', he
 parser.add_argument('--seed', default=None, type=int, help='seed for initializing training.')
 parser.add_argument('--root_log', type=str, default='log')
 parser.add_argument('--root_model', type=str, default='./checkpoint')
+parser.add_argument('--shared_data',type=float,default='0')
 best_acc1 = 0
 
+# 数据分割
+class DatasetSplit(Dataset):
+    """An abstract Dataset class wrapped around Pytorch Dataset class.
+    """
+
+    def __init__(self, dataset, idxs):
+        self.dataset = dataset
+        self.idxs = [int(i) for i in idxs]
+
+    def __len__(self):
+        return len(self.idxs)
+
+    def __getitem__(self, item):
+        image, label = self.dataset[self.idxs[item]]
+#        return torch.tensor(image), torch.tensor(label)
+        return image.clone().detach(), torch.tensor(label)
 
 def main():
     args = parser.parse_args()
@@ -130,15 +147,18 @@ def main_worker(gpu, args):
         #     rand_number=args.rand_number, train=True, download=True, transform=transform_train
         # )
         train_dataset = datasets.CIFAR10(root=args.data_path,
-                                       train=True, download=True, transform=transform_val)
+                                       train=True, download=True, transform=transform_train)
         val_dataset = datasets.CIFAR10(root=args.data_path,
                                        train=False, download=True, transform=transform_val)
+        if args.shared_data:
+            train_dataset = DatasetSplit(train_dataset, [i for i in range(int(len(train_dataset)*(1-args.shared_data)),len(train_dataset))])
+            val_dataset = DatasetSplit(val_dataset, [i for i in range(int(len(val_dataset)*(1-args.shared_data)),len(val_dataset))])
         train_sampler = None
 
-        train_loader = torch.utils.data.DataLoader(
+        train_loader = DataLoader(
             train_dataset, batch_size=args.batch_size, shuffle=(train_sampler is None),
             num_workers=args.workers, pin_memory=True, sampler=train_sampler)
-        val_loader = torch.utils.data.DataLoader(val_dataset, batch_size=100, shuffle=False,
+        val_loader = DataLoader(val_dataset, batch_size=100, shuffle=False,
                                                  num_workers=args.workers, pin_memory=True) 
     else:
         raise NotImplementedError('Dataset is not listed')
@@ -150,9 +170,9 @@ def main_worker(gpu, args):
     #     args.cls_num_list = cls_num_list
 
     # init log for training
-    log_training = open(os.path.join(args.root_log, args.store_name, 'log_train.csv'), 'w')
-    log_testing = open(os.path.join(args.root_log, args.store_name, 'log_test.csv'), 'w')
-    with open(os.path.join(args.root_log, args.store_name, 'args.txt'), 'w') as f:
+    log_training = open(os.path.join(args.root_log, args.store_name, 'log_train.csv'), 'a')
+    log_testing = open(os.path.join(args.root_log, args.store_name, 'log_test.csv'), 'a')
+    with open(os.path.join(args.root_log, args.store_name, 'args.txt'), 'a') as f:
         f.write(str(args))
     tf_writer = SummaryWriter(log_dir=os.path.join(args.root_log, args.store_name))
 
