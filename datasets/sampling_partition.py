@@ -28,23 +28,25 @@ logging.basicConfig()
 logger = logging.getLogger()
 logger.setLevel(logging.INFO)
 
-def cifar_iid(dataset, num_users):
+def cifar_iid(dataset, num_users, shared_data):
     """
     Sample I.I.D. client data from CIFAR10 dataset
     :param dataset:
     :param num_users:
     :return: dict of image index
     """
-    num_items = int(len(dataset)/num_users)
-    dict_users, all_idxs = {}, [i for i in range(len(dataset))]
+    shared_items = int(len(dataset)*shared_data)
+    num_items = int((len(dataset)-shared_items)/num_users)
+    idxs_share = [i for i in range(len(dataset)-shared_items,len(dataset))]
+    dict_users, all_idxs = {}, [i for i in range(len(dataset)-shared_items)]
     for i in range(num_users):
         dict_users[i] = set(np.random.choice(all_idxs, num_items,
                                              replace=False))
         all_idxs = list(set(all_idxs) - dict_users[i])
-    return dict_users
+    return dict_users,idxs_share
 
 #to be changed
-def cifar_noniid(dataset, num_users, partition):
+def cifar_noniid(dataset, num_users, partition, shared_data):
     """
     Sample non-I.I.D client data from CIFAR10 dataset
     :param dataset:
@@ -52,9 +54,11 @@ def cifar_noniid(dataset, num_users, partition):
     :return:
     """
     alpha=0.5
-    datadir = '/workspace/mytest/FederatedLearning/data/cifar'
+    datadir = './data/cifar'
     X_train, y_train, X_test, y_test = load_cifar10_data(datadir)
-    n_train = X_train.shape[0]
+    n_train = int(X_train.shape[0]*(1-shared_data))
+    shared_items = int(X_train.shape[0]*shared_data)
+    idxs_share = [i for i in range(shared_items,X_train.shape[0])]
     if partition == "homo":
         idxs = np.random.permutation(n_train)
         idx_batch = np.array_split(idxs, num_users)
@@ -62,7 +66,10 @@ def cifar_noniid(dataset, num_users, partition):
     elif partition == "hetero-dir":
         min_size = 0
         K = 10
-        N = y_train.shape[0]
+        N = int(X_train.shape[0]*(1-shared_data))
+        print('x.shape',X_train.shape[0],' y.shape',y_train.shape[0])
+        y_train = y_train[shared_items:] # 截取训练集
+        print('new shape',y_train.shape[0])
         net_dataidx_map = {}
         while min_size < 10:
             idx_batch = [[] for _ in range(num_users)]
@@ -81,15 +88,12 @@ def cifar_noniid(dataset, num_users, partition):
             np.random.shuffle(idx_batch[j])
             net_dataidx_map[j] = idx_batch[j]
             
-    for j in range(num_users):
-        print('net_dataidx_map[',j,']',len(net_dataidx_map[j]))
-        print('\t')
     
 #     print('net_dataidx_map',net_dataidx_map)
 
     traindata_cls_counts = record_net_data_stats(y_train, net_dataidx_map)
     #return y_train, net_dataidx_map, traindata_cls_counts
-    return net_dataidx_map
+    return net_dataidx_map,idxs_share
 
 #to be changed end
 
@@ -107,7 +111,6 @@ def record_net_data_stats(y_train, net_dataidx_map):
 class CIFAR10_truncated(data.Dataset):
 
     def __init__(self, root, dataidxs=None, train=True, transform=None, target_transform=None, download=False):
-
         self.root = root
         self.dataidxs = dataidxs
         self.train = train
@@ -118,7 +121,6 @@ class CIFAR10_truncated(data.Dataset):
         self.data, self.target = self.__build_truncated_dataset__()
 
     def __build_truncated_dataset__(self):
-
         cifar_dataobj = CIFAR10(self.root, self.train, self.transform, self.target_transform, self.download)
 
         if self.train:

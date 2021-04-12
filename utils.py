@@ -35,16 +35,19 @@ def get_dataset(args):
 
         test_dataset = datasets.CIFAR10(data_dir, train=False, download=True,
                                       transform=apply_transform)
-
+        # check proportion of shared_data
+        shared_data = 0
+        if args.shared_data>0:
+            shared_data = args.shared_data
         # sample training data amongst users
         if args.iid:
             # Sample IID user data 
-            user_groups = cifar_iid(train_dataset, args.num_users)
+            user_groups,idxs_share = cifar_iid(train_dataset, args.num_users,shared_data)
         else:
             # Sample Non-IID user data
-            user_groups = cifar_noniid(train_dataset, args.num_users, args.partition)
+            user_groups,idxs_share = cifar_noniid(train_dataset, args.num_users, args.partition, shared_data)
 
-    return train_dataset, test_dataset, user_groups
+    return train_dataset, test_dataset, user_groups, idxs_share
 
 
 def average_weights(w):
@@ -59,22 +62,29 @@ def average_weights(w):
     return w_avg
 
 
-def exp_details(args):
-    print(time.strftime("%Y-%m-%d-%H_%M_%S", time.localtime()))
-    print('\nExperimental details:')
-    print(f'    Model     : {args.model}')
-    print(f'    Optimizer : {args.optimizer}')
-    print(f'    Learning  : {args.lr}')
-    print(f'    Global Rounds   : {args.epochs}\n')
+def exp_details(log,args):
+    log.logger.debug(time.strftime("%Y-%m-%d-%H_%M_%S", time.localtime()))
+    log.logger.debug('\nExperimental details:')
+    log.logger.debug(f'    Model     : {args.model}')
+    log.logger.debug(f'    Optimizer : {args.optimizer}')
+    log.logger.debug(f'    Learning  : {args.lr}')
+    log.logger.debug(f'    Global Rounds   : {args.epochs}\n')
 
-    print('    Federated parameters:')
+    log.logger.debug('    Federated parameters:')
     if args.iid:
-        print('    IID')
+        log.logger.debug('    IID')
     else:
-        print('    Non-IID')
+        log.logger.debug('    Non-IID')
     #print(f'    Fraction of users  : {args.frac}')
-    print(f'    Local Batch size   : {args.local_bs}')
-    print(f'    Local Epochs       : {args.local_ep}\n')
+    log.logger.debug(f'    Local Batch size   : {args.local_bs}')
+    log.logger.debug(f'    Local Epochs       : {args.local_ep}\n')
+    
+    if args.num_users:
+        log.logger.debug(f'    num_users   : {args.num_users}')
+    if args.shared_data:
+        log.logger.debug(f'    shared_data   : {args.shared_data}')
+    if args.pretrained_model :
+        log.logger.debug(f'    pretrained_model   : {args.pretrained_model}')
     return
 
 def save_checkpoint(args, state, is_best, local_idx, is_global):

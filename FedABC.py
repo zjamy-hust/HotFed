@@ -25,7 +25,42 @@ best_local_acc = 0
 best_global_acc = 0
 pretrained_model='./checkpoints/pre_ckpt.best.pth.tar'
 
+
+import logging
+from logging import handlers
+ 
+class Logger(object):
+    level_relations = {
+        'debug':logging.DEBUG,
+        'info':logging.INFO,
+        'warning':logging.WARNING,
+        'error':logging.ERROR,
+        'crit':logging.CRITICAL
+    }#日志级别关系映射
+ 
+    def __init__(self,filename,level='info',when='D',interval=30,backCount=100,fmt='%(message)s'):
+        self.logger = logging.getLogger(filename)
+        format_str = logging.Formatter(fmt)#设置日志格式
+        self.logger.setLevel(self.level_relations.get(level))#设置日志级别
+        self.logger.propagate = False
+        # sh = logging.StreamHandler()#往屏幕上输出
+        # sh.setFormatter(format_str) #设置屏幕上显示的格式
+        th = handlers.TimedRotatingFileHandler(filename=filename,when=when,interval=interval,backupCount=backCount,encoding='utf-8')#往文件里写入#指定间隔时间自动生成文件的处理器
+        #实例化TimedRotatingFileHandler
+        #interval是时间间隔，backupCount是备份文件的个数，如果超过这个个数，就会自动删除，when是间隔的时间单位，单位有以下几种：
+        # S 秒
+        # M 分
+        # H 小时、
+        # D 天、
+        # W 每星期（interval==0时代表星期一）
+        # midnight 每天凌晨
+        th.setFormatter(format_str)#设置文件里写入的格式
+        # self.logger.addHandler(sh) #把对象加到logger里
+        self.logger.addHandler(th)
+
+
 if __name__ == '__main__':
+    log = Logger('mylog/'+time.strftime("%Y-%m-%d-%H_%M_%S", time.localtime())+'.log',level='debug')
     best_local_acc = 0
     best_global_acc = 0
     start_time = time.time()
@@ -35,14 +70,20 @@ if __name__ == '__main__':
     logger = SummaryWriter('./logs')
 
     args = args_parser()
-    exp_details(args)
+    exp_details(log,args)
     if args.gpu:
         torch.cuda.set_device(int(args.gpu))
     device = (f'cuda:{str(args.gpu)}')  if torch.cuda.is_available() else 'cpu'
 
     # load dataset and user groups
-    train_dataset, test_dataset, user_groups = get_dataset(args)
-
+    train_dataset, test_dataset, user_groups,idxs_share = get_dataset(args)
+    if args.iid==0:
+        log.logger.debug(f'\n')
+        for j in range(args.num_users):
+            log.logger.debug(f"    user_groups['{j}'] '{len(user_groups[j])}'")
+    print('range test:',list(user_groups[0])[1],' ',list(user_groups[5])[10])
+    print("idxs_share",len(idxs_share))
+    
     # BUILD MODEL
     if args.model == 'test':
         global_model = TestmyNet()
@@ -57,6 +98,7 @@ if __name__ == '__main__':
     global_model.to(device)
     global_model.train()
     print(global_model)
+    log.logger.debug(global_model)
 
     # copy weights
     global_weights = global_model.state_dict()
@@ -72,12 +114,14 @@ if __name__ == '__main__':
     if args.resume:
         if os.path.isfile(args.resume):
             print(f"===> Loading checkpoint '{args.resume}'")
+            log.logger.debug(f"===> Loading checkpoint '{args.resume}'")
             checkpoint = torch.load(args.resume, map_location=torch.device(f'cuda:{str(args.gpu)}'))
             start_epoch = checkpoint['epoch']
             global_model.load_state_dict(checkpoint['state_dict'])
             #optimizer.load_state_dict(checkpoint['optimizer'])
             train_accuracy = checkpoint['train_accuracy']
             print(f"===> Loaded checkpoint '{args.resume}' (epoch {checkpoint['epoch']})")
+            log.logger.debug(f"===> Loaded checkpoint '{args.resume}' (epoch {checkpoint['epoch']})")
         else:
             raise ValueError(f"No checkpoint found at '{args.resume}'")    
     else :
@@ -93,7 +137,9 @@ if __name__ == '__main__':
                         new_state_dict[k] = v
                 global_model.load_state_dict(new_state_dict, strict=False)
                 print(f'===> Pretrained weights found in total: [{len(list(new_state_dict.keys()))}]')
+                log.logger.debug(f'===> Pretrained weights found in total: [{len(list(new_state_dict.keys()))}]')
             print(f'===> Pre-trained model loaded: {args.pretrained_model}')
+            log.logger.debug(f'===> Pre-trained model loaded: {args.pretrained_model}')
 
     best_test_acc = 0
     is_best = 0
@@ -111,15 +157,11 @@ if __name__ == '__main__':
         #update learning rate
         args.lr=scheduler.get_last_lr()[0]
         print(f'\n | Global Training Round : {epoch+1} |\n')
+        log.logger.debug(f'\n | Global Training Round : {epoch+1} |\n')
 
         # m = max(int(args.frac * args.num_users), 1)
         # idxs_users = np.random.choice(range(args.num_users), m, replace=False)
         start_user = 0
-        idxs_share = []
-        if args.comparing_shared:
-            start_user = 1
-            if args.shared_data:
-               idxs_share=user_groups[0]
         # Set optimizer for the local updates
         for idx in range(start_user,args.num_users):
             local_model = LocalUpdate(args=args, dataset=train_dataset,
@@ -135,6 +177,7 @@ if __name__ == '__main__':
                         'state_dict': w,
                     }, is_best, idx, is_global=0)
             print(f'Global:{epoch}, user:{idx}, size:{len(user_groups[idx])} loss: {loss:.4f}')
+            log.logger.debug(f'Global:{epoch}, user:{idx}, size:{len(user_groups[idx])} loss: {loss:.4f}')
             optimizer.step() #not sure whether making it inside idx or outside idx
 
         # update global weights
@@ -171,18 +214,26 @@ if __name__ == '__main__':
             }, is_best, local_idx=1000,is_global=1)
         if (epoch+1) % print_every == 0:
             print(f' \nAvg Training Stats after {epoch+1} global rounds:')
+            log.logger.debug(f' \nAvg Training Stats after {epoch+1} global rounds:')
             print(f'Training Loss : {np.mean(np.array(train_loss))}')
+            log.logger.debug(f'Training Loss : {np.mean(np.array(train_loss))}')
             print('Train Accuracy: {:.2f}% '.format(100*train_accuracy[-1]))
+            log.logger.debug('Train Accuracy: {:.2f}% '.format(100*train_accuracy[-1]))
             print('Test Accuracy: {:.2f}% '.format(100*test_acc))
+            log.logger.debug('Test Accuracy: {:.2f}% '.format(100*test_acc))
             print('Best Test Accuracy: {:.2f}% \n'.format(100*best_test_acc))
+            log.logger.debug('Best Test Accuracy: {:.2f}% \n'.format(100*best_test_acc))
         scheduler.step()
 
     # Test inference after completion of training
     test_acc, test_loss =  test_inference(args, global_model, test_dataset)
 
     print(f' \n Results after {args.epochs} global rounds of training:')
+    log.logger.debug(f' \n Results after {args.epochs} global rounds of training:')
     print("|---- Avg Train Accuracy: {:.2f}%".format(100*train_accuracy[-1]))
+    log.logger.debug("|---- Avg Train Accuracy: {:.2f}%".format(100*train_accuracy[-1]))
     print("|---- Test Accuracy: {:.2f}%".format(100*test_acc))
+    log.logger.debug("|---- Test Accuracy: {:.2f}%".format(100*test_acc))
 
     # Saving the objects train_loss and train_accuracy:
     if not os.path.isdir('save/objects'):
@@ -195,6 +246,7 @@ if __name__ == '__main__':
         pickle.dump([train_loss, train_accuracy], f)
 
     print('\n Total Run Time: {0:0.4f}'.format(time.time()-start_time))
+    log.logger.debug('\n Total Run Time: {0:0.4f}'.format(time.time()-start_time))
 
     # PLOTTING (optional)
 

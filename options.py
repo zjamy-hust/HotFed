@@ -43,8 +43,8 @@ def args_parser():
     parser.add_argument('--verbose', type=int, default=0, help='verbose')
     parser.add_argument('--save_local', type=int, default=0, help='save local models or not')
     parser.add_argument('--save_global', type=int, default=1, help='save global models or not')
-    parser.add_argument('--comparing_shared', type=int, default=0, help='comparing shared or not')
-    parser.add_argument('--shared_data', type=int, default=1, help='using shared data or not, comparing_shared but be 1')
+    # parser.add_argument('--comparing_shared', type=int, default=0, help='comparing shared or not')
+    parser.add_argument('--shared_data', type=float, default=0, help='using shared data or not')
     parser.add_argument('--partition', type=str, default='homo', help='homo, ')
   
     parser.add_argument('--resume', type=str, default='')
