@@ -1,0 +1,362 @@
+2021-04-09-22_26_19
+
+Experimental details:
+    Model     : resnet18
+    Optimizer : sgd
+    Learning  : 0.01
+    Global Rounds   : 10
+
+    Federated parameters:
+    Non-IID
+    Local Batch size   : 128
+    Local Epochs       : 10
+
+    num_users   : 16
+    shared_data   : 0.5
+    pretrained_model   : ./unsupervised_pretrain/checkpoint/cifar10_resnet18_CE_None_exp_0.01_pretrain_rot/ckpt.best.pth.tar
+ResNet(
+  (conv1): Conv2d(3, 64, kernel_size=(3, 3), stride=(1, 1), padding=(1, 1), bias=False)
+  (bn1): BatchNorm2d(64, eps=1e-05, momentum=0.1, affine=True, track_running_stats=True)
+  (layer1): Sequential(
+    (0): BasicBlock(
+      (conv1): Conv2d(64, 64, kernel_size=(3, 3), stride=(1, 1), padding=(1, 1), bias=False)
+      (bn1): BatchNorm2d(64, eps=1e-05, momentum=0.1, affine=True, track_running_stats=True)
+      (conv2): Conv2d(64, 64, kernel_size=(3, 3), stride=(1, 1), padding=(1, 1), bias=False)
+      (bn2): BatchNorm2d(64, eps=1e-05, momentum=0.1, affine=True, track_running_stats=True)
+      (shortcut): Sequential()
+    )
+    (1): BasicBlock(
+      (conv1): Conv2d(64, 64, kernel_size=(3, 3), stride=(1, 1), padding=(1, 1), bias=False)
+      (bn1): BatchNorm2d(64, eps=1e-05, momentum=0.1, affine=True, track_running_stats=True)
+      (conv2): Conv2d(64, 64, kernel_size=(3, 3), stride=(1, 1), padding=(1, 1), bias=False)
+      (bn2): BatchNorm2d(64, eps=1e-05, momentum=0.1, affine=True, track_running_stats=True)
+      (shortcut): Sequential()
+    )
+  )
+  (layer2): Sequential(
+    (0): BasicBlock(
+      (conv1): Conv2d(64, 128, kernel_size=(3, 3), stride=(2, 2), padding=(1, 1), bias=False)
+      (bn1): BatchNorm2d(128, eps=1e-05, momentum=0.1, affine=True, track_running_stats=True)
+      (conv2): Conv2d(128, 128, kernel_size=(3, 3), stride=(1, 1), padding=(1, 1), bias=False)
+      (bn2): BatchNorm2d(128, eps=1e-05, momentum=0.1, affine=True, track_running_stats=True)
+      (shortcut): Sequential(
+        (0): Conv2d(64, 128, kernel_size=(1, 1), stride=(2, 2), bias=False)
+        (1): BatchNorm2d(128, eps=1e-05, momentum=0.1, affine=True, track_running_stats=True)
+      )
+    )
+    (1): BasicBlock(
+      (conv1): Conv2d(128, 128, kernel_size=(3, 3), stride=(1, 1), padding=(1, 1), bias=False)
+      (bn1): BatchNorm2d(128, eps=1e-05, momentum=0.1, affine=True, track_running_stats=True)
+      (conv2): Conv2d(128, 128, kernel_size=(3, 3), stride=(1, 1), padding=(1, 1), bias=False)
+      (bn2): BatchNorm2d(128, eps=1e-05, momentum=0.1, affine=True, track_running_stats=True)
+      (shortcut): Sequential()
+    )
+  )
+  (layer3): Sequential(
+    (0): BasicBlock(
+      (conv1): Conv2d(128, 256, kernel_size=(3, 3), stride=(2, 2), padding=(1, 1), bias=False)
+      (bn1): BatchNorm2d(256, eps=1e-05, momentum=0.1, affine=True, track_running_stats=True)
+      (conv2): Conv2d(256, 256, kernel_size=(3, 3), stride=(1, 1), padding=(1, 1), bias=False)
+      (bn2): BatchNorm2d(256, eps=1e-05, momentum=0.1, affine=True, track_running_stats=True)
+      (shortcut): Sequential(
+        (0): Conv2d(128, 256, kernel_size=(1, 1), stride=(2, 2), bias=False)
+        (1): BatchNorm2d(256, eps=1e-05, momentum=0.1, affine=True, track_running_stats=True)
+      )
+    )
+    (1): BasicBlock(
+      (conv1): Conv2d(256, 256, kernel_size=(3, 3), stride=(1, 1), padding=(1, 1), bias=False)
+      (bn1): BatchNorm2d(256, eps=1e-05, momentum=0.1, affine=True, track_running_stats=True)
+      (conv2): Conv2d(256, 256, kernel_size=(3, 3), stride=(1, 1), padding=(1, 1), bias=False)
+      (bn2): BatchNorm2d(256, eps=1e-05, momentum=0.1, affine=True, track_running_stats=True)
+      (shortcut): Sequential()
+    )
+  )
+  (layer4): Sequential(
+    (0): BasicBlock(
+      (conv1): Conv2d(256, 512, kernel_size=(3, 3), stride=(2, 2), padding=(1, 1), bias=False)
+      (bn1): BatchNorm2d(512, eps=1e-05, momentum=0.1, affine=True, track_running_stats=True)
+      (conv2): Conv2d(512, 512, kernel_size=(3, 3), stride=(1, 1), padding=(1, 1), bias=False)
+      (bn2): BatchNorm2d(512, eps=1e-05, momentum=0.1, affine=True, track_running_stats=True)
+      (shortcut): Sequential(
+        (0): Conv2d(256, 512, kernel_size=(1, 1), stride=(2, 2), bias=False)
+        (1): BatchNorm2d(512, eps=1e-05, momentum=0.1, affine=True, track_running_stats=True)
+      )
+    )
+    (1): BasicBlock(
+      (conv1): Conv2d(512, 512, kernel_size=(3, 3), stride=(1, 1), padding=(1, 1), bias=False)
+      (bn1): BatchNorm2d(512, eps=1e-05, momentum=0.1, affine=True, track_running_stats=True)
+      (conv2): Conv2d(512, 512, kernel_size=(3, 3), stride=(1, 1), padding=(1, 1), bias=False)
+      (bn2): BatchNorm2d(512, eps=1e-05, momentum=0.1, affine=True, track_running_stats=True)
+      (shortcut): Sequential()
+    )
+  )
+  (linear): Linear(in_features=512, out_features=10, bias=True)
+)
+===> Pretrained weights found in total: [120]
+===> Pre-trained model loaded: ./unsupervised_pretrain/checkpoint/cifar10_resnet18_CE_None_exp_0.01_pretrain_rot/ckpt.best.pth.tar
+
+ | Global Training Round : 1 |
+
+Global:0, user:0, size:3485 loss: 0.5680
+Global:0, user:1, size:3008 loss: 0.5624
+Global:0, user:2, size:4261 loss: 0.5492
+Global:0, user:3, size:1302 loss: 0.5790
+Global:0, user:4, size:3640 loss: 0.5572
+Global:0, user:5, size:2117 loss: 0.5692
+Global:0, user:6, size:3360 loss: 0.5622
+Global:0, user:7, size:3746 loss: 0.5543
+Global:0, user:8, size:4593 loss: 0.5479
+Global:0, user:9, size:3172 loss: 0.5573
+Global:0, user:10, size:3699 loss: 0.5566
+Global:0, user:11, size:3553 loss: 0.5619
+Global:0, user:12, size:3183 loss: 0.5560
+Global:0, user:13, size:3035 loss: 0.5702
+Global:0, user:14, size:1705 loss: 0.5783
+Global:0, user:15, size:2141 loss: 0.5820
+ 
+Avg Training Stats after 1 global rounds:
+Training Loss : 0.5632280595092912
+Train Accuracy: 89.23% 
+Test Accuracy: 86.78% 
+Best Test Accuracy: 86.78% 
+
+
+ | Global Training Round : 2 |
+
+Global:1, user:0, size:3485 loss: 0.2521
+Global:1, user:1, size:3008 loss: 0.2451
+Global:1, user:2, size:4261 loss: 0.2443
+Global:1, user:3, size:1302 loss: 0.2496
+Global:1, user:4, size:3640 loss: 0.2453
+Global:1, user:5, size:2117 loss: 0.2456
+Global:1, user:6, size:3360 loss: 0.2459
+Global:1, user:7, size:3746 loss: 0.2467
+Global:1, user:8, size:4593 loss: 0.2462
+Global:1, user:9, size:3172 loss: 0.2412
+Global:1, user:10, size:3699 loss: 0.2466
+Global:1, user:11, size:3553 loss: 0.2542
+Global:1, user:12, size:3183 loss: 0.2456
+Global:1, user:13, size:3035 loss: 0.2654
+Global:1, user:14, size:1705 loss: 0.2522
+Global:1, user:15, size:2141 loss: 0.2692
+ 
+Avg Training Stats after 2 global rounds:
+Training Loss : 0.4064661343322117
+Train Accuracy: 95.22% 
+Test Accuracy: 89.70% 
+Best Test Accuracy: 89.70% 
+
+
+ | Global Training Round : 3 |
+
+Global:2, user:0, size:3485 loss: 0.1496
+Global:2, user:1, size:3008 loss: 0.1426
+Global:2, user:2, size:4261 loss: 0.1442
+Global:2, user:3, size:1302 loss: 0.1432
+Global:2, user:4, size:3640 loss: 0.1450
+Global:2, user:5, size:2117 loss: 0.1398
+Global:2, user:6, size:3360 loss: 0.1478
+Global:2, user:7, size:3746 loss: 0.1462
+Global:2, user:8, size:4593 loss: 0.1477
+Global:2, user:9, size:3172 loss: 0.1456
+Global:2, user:10, size:3699 loss: 0.1436
+Global:2, user:11, size:3553 loss: 0.1589
+Global:2, user:12, size:3183 loss: 0.1440
+Global:2, user:13, size:3035 loss: 0.1772
+Global:2, user:14, size:1705 loss: 0.1452
+Global:2, user:15, size:2141 loss: 0.1670
+ 
+Avg Training Stats after 3 global rounds:
+Training Loss : 0.3207221397671835
+Train Accuracy: 97.97% 
+Test Accuracy: 90.74% 
+Best Test Accuracy: 90.74% 
+
+
+ | Global Training Round : 4 |
+
+Global:3, user:0, size:3485 loss: 0.0923
+Global:3, user:1, size:3008 loss: 0.0844
+Global:3, user:2, size:4261 loss: 0.0889
+Global:3, user:3, size:1302 loss: 0.0828
+Global:3, user:4, size:3640 loss: 0.0890
+Global:3, user:5, size:2117 loss: 0.0819
+Global:3, user:6, size:3360 loss: 0.0885
+Global:3, user:7, size:3746 loss: 0.0891
+Global:3, user:8, size:4593 loss: 0.0931
+Global:3, user:9, size:3172 loss: 0.0875
+Global:3, user:10, size:3699 loss: 0.0883
+Global:3, user:11, size:3553 loss: 0.1022
+Global:3, user:12, size:3183 loss: 0.0876
+Global:3, user:13, size:3035 loss: 0.1193
+Global:3, user:14, size:1705 loss: 0.0856
+Global:3, user:15, size:2141 loss: 0.1090
+ 
+Avg Training Stats after 4 global rounds:
+Training Loss : 0.2635041587175262
+Train Accuracy: 99.04% 
+Test Accuracy: 91.15% 
+Best Test Accuracy: 91.15% 
+
+
+ | Global Training Round : 5 |
+
+Global:4, user:0, size:3485 loss: 0.0561
+Global:4, user:1, size:3008 loss: 0.0499
+Global:4, user:2, size:4261 loss: 0.0549
+Global:4, user:3, size:1302 loss: 0.0464
+Global:4, user:4, size:3640 loss: 0.0545
+Global:4, user:5, size:2117 loss: 0.0491
+Global:4, user:6, size:3360 loss: 0.0547
+Global:4, user:7, size:3746 loss: 0.0542
+Global:4, user:8, size:4593 loss: 0.0591
+Global:4, user:9, size:3172 loss: 0.0537
+Global:4, user:10, size:3699 loss: 0.0529
+Global:4, user:11, size:3553 loss: 0.0670
+Global:4, user:12, size:3183 loss: 0.0544
+Global:4, user:13, size:3035 loss: 0.0723
+Global:4, user:14, size:1705 loss: 0.0499
+Global:4, user:15, size:2141 loss: 0.0624
+ 
+Avg Training Stats after 5 global rounds:
+Training Loss : 0.22194798429047552
+Train Accuracy: 99.38% 
+Test Accuracy: 91.62% 
+Best Test Accuracy: 91.62% 
+
+
+ | Global Training Round : 6 |
+
+Global:5, user:0, size:3485 loss: 0.0379
+Global:5, user:1, size:3008 loss: 0.0312
+Global:5, user:2, size:4261 loss: 0.0359
+Global:5, user:3, size:1302 loss: 0.0282
+Global:5, user:4, size:3640 loss: 0.0361
+Global:5, user:5, size:2117 loss: 0.0278
+Global:5, user:6, size:3360 loss: 0.0350
+Global:5, user:7, size:3746 loss: 0.0355
+Global:5, user:8, size:4593 loss: 0.0391
+Global:5, user:9, size:3172 loss: 0.0343
+Global:5, user:10, size:3699 loss: 0.0350
+Global:5, user:11, size:3553 loss: 0.0414
+Global:5, user:12, size:3183 loss: 0.0330
+Global:5, user:13, size:3035 loss: 0.0519
+Global:5, user:14, size:1705 loss: 0.0295
+Global:5, user:15, size:2141 loss: 0.0584
+ 
+Avg Training Stats after 6 global rounds:
+Training Loss : 0.19110499196773303
+Train Accuracy: 99.45% 
+Test Accuracy: 91.70% 
+Best Test Accuracy: 91.70% 
+
+
+ | Global Training Round : 7 |
+
+Global:6, user:0, size:3485 loss: 0.0273
+Global:6, user:1, size:3008 loss: 0.0225
+Global:6, user:2, size:4261 loss: 0.0256
+Global:6, user:3, size:1302 loss: 0.0179
+Global:6, user:4, size:3640 loss: 0.0256
+Global:6, user:5, size:2117 loss: 0.0186
+Global:6, user:6, size:3360 loss: 0.0253
+Global:6, user:7, size:3746 loss: 0.0251
+Global:6, user:8, size:4593 loss: 0.0294
+Global:6, user:9, size:3172 loss: 0.0244
+Global:6, user:10, size:3699 loss: 0.0245
+Global:6, user:11, size:3553 loss: 0.0344
+Global:6, user:12, size:3183 loss: 0.0229
+Global:6, user:13, size:3035 loss: 0.0387
+Global:6, user:14, size:1705 loss: 0.0205
+Global:6, user:15, size:2141 loss: 0.0339
+ 
+Avg Training Stats after 7 global rounds:
+Training Loss : 0.1675255583603918
+Train Accuracy: 99.54% 
+Test Accuracy: 91.78% 
+Best Test Accuracy: 91.78% 
+
+
+ | Global Training Round : 8 |
+
+Global:7, user:0, size:3485 loss: 0.0218
+Global:7, user:1, size:3008 loss: 0.0168
+Global:7, user:2, size:4261 loss: 0.0205
+Global:7, user:3, size:1302 loss: 0.0136
+Global:7, user:4, size:3640 loss: 0.0208
+Global:7, user:5, size:2117 loss: 0.0146
+Global:7, user:6, size:3360 loss: 0.0204
+Global:7, user:7, size:3746 loss: 0.0205
+Global:7, user:8, size:4593 loss: 0.0242
+Global:7, user:9, size:3172 loss: 0.0181
+Global:7, user:10, size:3699 loss: 0.0200
+Global:7, user:11, size:3553 loss: 0.0231
+Global:7, user:12, size:3183 loss: 0.0177
+Global:7, user:13, size:3035 loss: 0.0255
+Global:7, user:14, size:1705 loss: 0.0159
+Global:7, user:15, size:2141 loss: 0.0271
+ 
+Avg Training Stats after 8 global rounds:
+Training Loss : 0.1490897990776659
+Train Accuracy: 99.56% 
+Test Accuracy: 91.79% 
+Best Test Accuracy: 91.79% 
+
+
+ | Global Training Round : 9 |
+
+Global:8, user:0, size:3485 loss: 0.0216
+Global:8, user:1, size:3008 loss: 0.0152
+Global:8, user:2, size:4261 loss: 0.0186
+Global:8, user:3, size:1302 loss: 0.0119
+Global:8, user:4, size:3640 loss: 0.0198
+Global:8, user:5, size:2117 loss: 0.0129
+Global:8, user:6, size:3360 loss: 0.0187
+Global:8, user:7, size:3746 loss: 0.0200
+Global:8, user:8, size:4593 loss: 0.0225
+Global:8, user:9, size:3172 loss: 0.0158
+Global:8, user:10, size:3699 loss: 0.0177
+Global:8, user:11, size:3553 loss: 0.0227
+Global:8, user:12, size:3183 loss: 0.0158
+Global:8, user:13, size:3035 loss: 0.0180
+Global:8, user:14, size:1705 loss: 0.0140
+Global:8, user:15, size:2141 loss: 0.0198
+ 
+Avg Training Stats after 9 global rounds:
+Training Loss : 0.13450301898110764
+Train Accuracy: 99.54% 
+Test Accuracy: 91.79% 
+Best Test Accuracy: 91.79% 
+
+
+ | Global Training Round : 10 |
+
+Global:9, user:0, size:3485 loss: 0.0234
+Global:9, user:1, size:3008 loss: 0.0163
+Global:9, user:2, size:4261 loss: 0.0206
+Global:9, user:3, size:1302 loss: 0.0122
+Global:9, user:4, size:3640 loss: 0.0206
+Global:9, user:5, size:2117 loss: 0.0135
+Global:9, user:6, size:3360 loss: 0.0204
+Global:9, user:7, size:3746 loss: 0.0210
+Global:9, user:8, size:4593 loss: 0.0260
+Global:9, user:9, size:3172 loss: 0.0163
+Global:9, user:10, size:3699 loss: 0.0198
+Global:9, user:11, size:3553 loss: 0.0232
+Global:9, user:12, size:3183 loss: 0.0171
+Global:9, user:13, size:3035 loss: 0.0202
+Global:9, user:14, size:1705 loss: 0.0149
+Global:9, user:15, size:2141 loss: 0.0211
+ 
+Avg Training Stats after 10 global rounds:
+Training Loss : 0.12296902711787247
+Train Accuracy: 99.55% 
+Test Accuracy: 91.74% 
+Best Test Accuracy: 91.79% 
+
+ 
+ Results after 10 global rounds of training:
+|---- Avg Train Accuracy: 99.55%
+|---- Test Accuracy: 91.74%
+
+ Total Run Time: 59953.0847
