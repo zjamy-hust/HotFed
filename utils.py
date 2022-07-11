@@ -8,7 +8,7 @@ import os
 import shutil
 import time
 from torchvision import datasets, transforms
-from datasets.sampling_partition import cifar_iid, cifar_noniid
+from datasets.sampling_partition import cifar_iid, cifar_noniid, cifar100_iid, cifar100_noniid
 
 
 def get_dataset(args):
@@ -17,35 +17,52 @@ def get_dataset(args):
     each of those users.
     """
 
-    if args.dataset == 'cifar':
-        data_dir = 'data/cifar/'
-        train_transform = transforms.Compose(
+    data_dir = 'data/'
+    shared_data = 0
+    if args.shared_data>0:
+        shared_data = args.shared_data
+
+    train_transform = transforms.Compose(
             [transforms.RandomHorizontalFlip(),
              transforms.RandomGrayscale(),
              transforms.ToTensor(),
              transforms.RandomCrop(32, padding=4),
              transforms.Normalize((0.4914, 0.4822, 0.4465), (0.2023, 0.1994, 0.2010))])
 
-        apply_transform = transforms.Compose(
+    apply_transform = transforms.Compose(
             [transforms.ToTensor(),
              transforms.Normalize((0.4914, 0.4822, 0.4465), (0.2023, 0.1994, 0.2010))])
 
+    if args.dataset == 'cifar10':
         train_dataset = datasets.CIFAR10(data_dir, train=True, download=True,
                                        transform=train_transform)
 
         test_dataset = datasets.CIFAR10(data_dir, train=False, download=True,
                                       transform=apply_transform)
-        # check proportion of shared_data
-        shared_data = 0
-        if args.shared_data>0:
-            shared_data = args.shared_data
-        # sample training data amongst users
         if args.iid:
-            # Sample IID user data 
+        # Sample IID user data 
             user_groups,idxs_share = cifar_iid(train_dataset, args.num_users,shared_data)
         else:
-            # Sample Non-IID user data
+        # Sample Non-IID user data
             user_groups,idxs_share = cifar_noniid(train_dataset, args.num_users, args.partition, shared_data)
+    elif args.dataset == 'cifar100':
+        train_dataset = datasets.CIFAR100(data_dir, train=True, download=True,
+                                       transform=train_transform)
+
+        test_dataset = datasets.CIFAR100(data_dir, train=False, download=True,
+                                      transform=apply_transform)
+        if args.iid:
+        # Sample IID user data 
+            user_groups,idxs_share = cifar100_iid(train_dataset, args.num_users,shared_data)
+        else:
+        # Sample Non-IID user data
+            user_groups,idxs_share = cifar100_noniid(train_dataset, args.num_users, args.partition, shared_data)
+    # check proportion of shared_data
+
+    # sample training data amongst users
+    
+
+
 
     return train_dataset, test_dataset, user_groups, idxs_share
 

@@ -77,14 +77,16 @@ class LocalUpdate(object):
             is_best = 0
             batch_loss = []
             model.train()
+            
             for batch_idx, (images, labels) in enumerate(loader):
                 images, labels = images.to(self.device), labels.to(self.device)
-
+                # print(len(images), len(labels))
                 model.zero_grad()
                 log_probs = model(images)
                 loss = self.criterion(log_probs, labels)
+                # optimizer.zero_grad()
                 loss.backward()
-
+               
                 self.logger.add_scalar('loss', loss.item())
                 batch_loss.append(loss.item())
                 optimizer.step()

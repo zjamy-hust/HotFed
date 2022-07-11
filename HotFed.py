@@ -81,8 +81,8 @@ if __name__ == '__main__':
         log.logger.debug(f'\n')
         for j in range(args.num_users):
             log.logger.debug(f"    user_groups['{j}'] '{len(user_groups[j])}'")
-    print('range test:',list(user_groups[0])[1],' ',list(user_groups[5])[10])
-    print("idxs_share",len(idxs_share))
+    # print('range test:',list(user_groups[0])[1],' ',list(user_groups[5])[10])
+    # print("idxs_share",len(idxs_share))
     
     # BUILD MODEL
     if args.model == 'test':
@@ -166,6 +166,7 @@ if __name__ == '__main__':
         for idx in range(start_user,args.num_users):
             local_model = LocalUpdate(args=args, dataset=train_dataset,
                                       idxs=user_groups[idx], idxs_shared=idxs_share, logger=logger)
+            model=copy.deepcopy(global_model)
             w, loss  = local_model.update_weights(
                 model=copy.deepcopy(global_model), global_round=epoch, user=idx)
             local_weights.append(copy.deepcopy(w))
