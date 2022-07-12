@@ -166,7 +166,7 @@ if __name__ == '__main__':
         for idx in range(start_user,args.num_users):
             local_model = LocalUpdate(args=args, dataset=train_dataset,
                                       idxs=user_groups[idx], idxs_shared=idxs_share, logger=logger)
-            model=copy.deepcopy(global_model)
+            # model=copy.deepcopy(global_model)
             w, loss  = local_model.update_weights(
                 model=copy.deepcopy(global_model), global_round=epoch, user=idx)
             local_weights.append(copy.deepcopy(w))
@@ -268,9 +268,29 @@ if __name__ == '__main__':
     plt.figure()
     # plt.title('Average Accuracy vs Communication rounds')
     plt.plot(range(len(train_accuracy)), train_accuracy, color='k')
-    plt.ylabel('Average Accuracy')
+    plt.ylabel('Average Train Accuracy')
     plt.xlabel('Communication Rounds')
     plt.show()
-    plt.savefig('save/fed_{}_{}_{}_iid[{}]_E[{}]_B[{}]_acc.png'.
+    plt.savefig('save/fed_{}_{}_{}_iid[{}]_E[{}]_B[{}]_train_acc.png'.
+                format(args.dataset, args.model, args.epochs, 
+                       args.iid, args.local_ep, args.local_bs))
+
+        # Plot Loss curve
+    plt.figure()
+    # plt.title('Training Loss vs Communication rounds')
+    plt.plot(range(len(test_loss)), test_loss, color='r')
+    plt.ylabel('Training loss')
+    plt.xlabel('Communication Rounds')
+    plt.show()
+    plt.savefig('save/fed_{}_{}_{}_iid[{}]_E[{}]_B[{}]_loss.png'.
+                format(args.dataset, args.model, args.epochs,
+                       args.iid, args.local_ep, args.local_bs))
+    plt.figure()
+    # plt.title('Average Accuracy vs Communication rounds')
+    plt.plot(range(len(test_acc)), test_acc, color='k')
+    plt.ylabel('Average Test Accuracy')
+    plt.xlabel('Communication Rounds')
+    plt.show()
+    plt.savefig('save/fed_{}_{}_{}_iid[{}]_E[{}]_B[{}]_test_acc.png'.
                 format(args.dataset, args.model, args.epochs, 
                        args.iid, args.local_ep, args.local_bs))
