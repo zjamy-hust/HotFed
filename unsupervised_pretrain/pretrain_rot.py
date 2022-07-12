@@ -16,6 +16,7 @@ from upre_utils import *
 from imbalance_cifar import ImbalanceCIFAR10
 from pretrain_resnet import ResNet18
 from pretrain_shufflenetv2 import ShuffleNetV2
+from pretrain_models_resnext import resnext
 
 model_names = sorted(name for name in models.__dict__
                      if name.islower() and not name.startswith("__")
@@ -99,6 +100,8 @@ def main_worker(gpu, args):
            model = ResNet18()
     elif args.arch == 'shufflenetv2':
             model = ShuffleNetV2(1)
+    elif args.arch == 'resnext':
+            model = resnext(cardinality=8,num_classes=100,depth=29,widen_factor=4,dropRate=0)
     else:
         num_classes = 4
         use_norm = True 
