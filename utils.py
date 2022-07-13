@@ -18,9 +18,10 @@ def get_dataset(args):
     """
 
     data_dir = 'data/'
-    shared_data = 0
-    if args.shared_data>0:
-        shared_data = args.shared_data
+    # shared_data = 0
+    # if args.shared_data>0:
+    #     shared_data = args.shared_data
+    # print('zjamy shared data',shared_data)
 
     train_transform = transforms.Compose(
             [transforms.RandomHorizontalFlip(),
@@ -41,10 +42,10 @@ def get_dataset(args):
                                       transform=apply_transform)
         if args.iid:
         # Sample IID user data 
-            user_groups,idxs_share = cifar_iid(train_dataset, args.num_users,shared_data)
+            user_groups = cifar_iid(train_dataset, args.num_users)
         else:
         # Sample Non-IID user data
-            user_groups,idxs_share = cifar_noniid(train_dataset, args.num_users, args.partition, shared_data)
+            user_groups = cifar_noniid(train_dataset, args.num_users, args.partition)
     elif args.dataset == 'cifar100':
         train_dataset = datasets.CIFAR100(data_dir, train=True, download=True,
                                        transform=train_transform)
@@ -53,18 +54,15 @@ def get_dataset(args):
                                       transform=apply_transform)
         if args.iid:
         # Sample IID user data 
-            user_groups,idxs_share = cifar100_iid(train_dataset, args.num_users,shared_data)
+            user_groups = cifar100_iid(train_dataset, args.num_users)
         else:
         # Sample Non-IID user data
-            user_groups,idxs_share = cifar100_noniid(train_dataset, args.num_users, args.partition, shared_data)
+            user_groups = cifar100_noniid(train_dataset, args.num_users, args.partition)
     # check proportion of shared_data
 
     # sample training data amongst users
     
-
-
-
-    return train_dataset, test_dataset, user_groups, idxs_share
+    return train_dataset, test_dataset, user_groups
 
 
 def average_weights(w):
@@ -98,8 +96,8 @@ def exp_details(log,args):
     
     if args.num_users:
         log.logger.debug(f'    num_users   : {args.num_users}')
-    if args.shared_data:
-        log.logger.debug(f'    shared_data   : {args.shared_data}')
+    # if args.shared_data:
+    #     log.logger.debug(f'    shared_data   : {args.shared_data}')
     if args.pretrained_model :
         log.logger.debug(f'    pretrained_model   : {args.pretrained_model}')
     return

@@ -76,13 +76,13 @@ if __name__ == '__main__':
     device = (f'cuda:{str(args.gpu)}')  if torch.cuda.is_available() else 'cpu'
 
     # load dataset and user groups
-    train_dataset, test_dataset, user_groups,idxs_share = get_dataset(args)
+    train_dataset, test_dataset, user_groups = get_dataset(args)
     if args.iid==0:
         log.logger.debug(f'\n')
         for j in range(args.num_users):
+            # print(len(user_groups[j]))
             log.logger.debug(f"    user_groups['{j}'] '{len(user_groups[j])}'")
-    # print('range test:',list(user_groups[0])[1],' ',list(user_groups[5])[10])
-    # print("idxs_share",len(idxs_share))
+
     
     # BUILD MODEL
     if args.model == 'test':
@@ -165,7 +165,7 @@ if __name__ == '__main__':
         # Set optimizer for the local updates
         for idx in range(start_user,args.num_users):
             local_model = LocalUpdate(args=args, dataset=train_dataset,
-                                      idxs=user_groups[idx], idxs_shared=idxs_share, logger=logger)
+                                      idxs=user_groups[idx], logger=logger)
             # model=copy.deepcopy(global_model)
             w, loss  = local_model.update_weights(
                 model=copy.deepcopy(global_model), global_round=epoch, user=idx)
@@ -195,7 +195,7 @@ if __name__ == '__main__':
         global_model.eval()
         for c in range(args.num_users):
             local_model = LocalUpdate(args=args, dataset=train_dataset,
-                                      idxs=user_groups[c],idxs_shared=idxs_share, logger=logger)
+                                      idxs=user_groups[c], logger=logger)
             acc, loss, _ = local_model.inference(model=global_model,global_round=1000,user=c)
             list_acc.append(acc)
             list_loss.append(loss)

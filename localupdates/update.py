@@ -26,17 +26,17 @@ class DatasetSplit(Dataset):
 
 
 class LocalUpdate(object):
-    def __init__(self, args, dataset, idxs, idxs_shared, logger):
+    def __init__(self, args, dataset, idxs, logger):
         self.args = args
         self.logger = logger
-        self.trainloader, self.valloader = self.train_val_test(dataset, list(idxs), list(idxs_shared))
+        self.trainloader, self.valloader = self.train_val_test(dataset, list(idxs))
         self.device = (f'cuda:{str(args.gpu)}')  if torch.cuda.is_available() else 'cpu'
         # Default criterion set to NLL loss function
         self.criterion = nn.CrossEntropyLoss().to(self.device)
         self.best_local_acc = 0
         #self.criterion = nn.NLLLoss().to(self.device)
 
-    def train_val_test(self, dataset, idxs, idxs_shared):
+    def train_val_test(self, dataset, idxs):
         """
         Returns train, validation and test dataloaders for a given dataset
         and user indexes.
@@ -46,10 +46,10 @@ class LocalUpdate(object):
         idxs_train = idxs[:int(len(idxs))]
         idxs_val = idxs[int(0.9*len(idxs)):] # is it iid? needs improve
 
-        if len(idxs_shared) > 0:
-            print('idxs_shared > 0')
-            idxs_train.extend(idxs_shared[:int(len(idxs_shared))])
-            idxs_val.extend(idxs_shared[int(0.9*len(idxs_shared)):])
+        # if len(idxs_shared) > 0:
+        #     print('idxs_shared > 0', idxs_shared)
+        #     idxs_train.extend(idxs_shared[:int(len(idxs_shared))])
+        #     idxs_val.extend(idxs_shared[int(0.9*len(idxs_shared)):])
 
         trainloader = DataLoader(DatasetSplit(dataset, idxs_train),
                                  batch_size=self.args.local_bs, shuffle=True)
