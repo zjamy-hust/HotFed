@@ -21,6 +21,7 @@ from localupdates.update import LocalUpdate, test_inference
 from models.models import TestmyNet
 from models.models_resnet import ResNet18
 from models.models_shufflenetv2 import ShuffleNetV2
+from models.models_resnext import resnext
 best_local_acc = 0
 best_global_acc = 0
 pretrained_model='./checkpoints/pre_ckpt.best.pth.tar'
@@ -91,6 +92,8 @@ if __name__ == '__main__':
         global_model = ResNet18()
     elif args.model == 'shufflenetv2':
         global_model = ShuffleNetV2(1)
+    elif args.model == 'resnext':
+        global_model = resnext(cardinality=8,num_classes=100,depth=29,widen_factor=4,dropRate=0)
     else:
         exit('Error: unrecognized model')
 

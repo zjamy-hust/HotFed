@@ -36,9 +36,7 @@ def cifar_iid(dataset, num_users):
     :param num_users:
     :return: dict of image index
     """
-    # shared_items = int(len(dataset))
     num_items = int((len(dataset))/num_users)
-    # idxs_share = [i for i in range(len(dataset)-shared_items,len(dataset))]
     dict_users, all_idxs = {}, [i for i in range(len(dataset))]
     for i in range(num_users):
         dict_users[i] = set(np.random.choice(all_idxs, num_items,
@@ -54,14 +52,11 @@ def cifar100_iid(dataset, num_users):
     :param num_users:
     :return: dict of image index
     """
-    # shared_items = int(len(dataset))
     num_items = int((len(dataset))/num_users)
-    # idxs_share = [i for i in range(len(dataset)-shared_items,len(dataset))]
     dict_users, all_idxs = {}, [i for i in range(len(dataset))]
     for i in range(num_users):
         dict_users[i] = set(np.random.choice(all_idxs, num_items, replace=False))
         all_idxs = list(set(all_idxs) - dict_users[i])
-    # print("zjamy", dict_users, idxs_share)
     return dict_users
 
 #to be changed
@@ -76,8 +71,6 @@ def cifar_noniid(dataset, num_users, partition):
     datadir = './data/'
     X_train, y_train, X_test, y_test = load_cifar10_data(datadir)
     n_train = int(X_train.shape[0])
-    # shared_items = int(X_train.shape[0]*shared_data)
-    # idxs_share = [i for i in range(shared_items,X_train.shape[0])]
     if partition == "homo":
         idxs = np.random.permutation(n_train)
         idx_batch = np.array_split(idxs, num_users)
@@ -119,8 +112,7 @@ def cifar100_noniid(dataset, num_users, partition):
     datadir = './data/'
     X_train, y_train, _, _ = load_cifar100_data(datadir)
     n_train = int(X_train.shape[0])
-    # shared_items = int(X_train.shape[0]*shared_data)
-    # idxs_share = [i for i in range(shared_items,X_train.shape[0])]
+
     if partition == "homo":
         idxs = np.random.permutation(n_train)
         idx_batch = np.array_split(idxs, num_users)

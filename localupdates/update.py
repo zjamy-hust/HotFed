@@ -46,10 +46,7 @@ class LocalUpdate(object):
         idxs_train = idxs[:int(len(idxs))]
         idxs_val = idxs[int(0.9*len(idxs)):] # is it iid? needs improve
 
-        # if len(idxs_shared) > 0:
-        #     print('idxs_shared > 0', idxs_shared)
-        #     idxs_train.extend(idxs_shared[:int(len(idxs_shared))])
-        #     idxs_val.extend(idxs_shared[int(0.9*len(idxs_shared)):])
+
 
         trainloader = DataLoader(DatasetSplit(dataset, idxs_train),
                                  batch_size=self.args.local_bs, shuffle=True)

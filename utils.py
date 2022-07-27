@@ -17,7 +17,7 @@ def get_dataset(args):
     each of those users.
     """
 
-    data_dir = 'data/'
+    data_dir = './data/'
     # shared_data = 0
     # if args.shared_data>0:
     #     shared_data = args.shared_data
