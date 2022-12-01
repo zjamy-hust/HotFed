@@ -26,17 +26,17 @@ class DatasetSplit(Dataset):
 
 
 class LocalUpdate(object):
-    def __init__(self, args, dataset, idxs, idxs_shared, logger):
+    def __init__(self, args, dataset, idxs, logger):
         self.args = args
         self.logger = logger
-        self.trainloader, self.valloader = self.train_val_test(dataset, list(idxs), list(idxs_shared))
+        self.trainloader, self.valloader = self.train_val_test(dataset, list(idxs))
         self.device = (f'cuda:{str(args.gpu)}')  if torch.cuda.is_available() else 'cpu'
         # Default criterion set to NLL loss function
         self.criterion = nn.CrossEntropyLoss().to(self.device)
         self.best_local_acc = 0
         #self.criterion = nn.NLLLoss().to(self.device)
 
-    def train_val_test(self, dataset, idxs, idxs_shared):
+    def train_val_test(self, dataset, idxs):
         """
         Returns train, validation and test dataloaders for a given dataset
         and user indexes.
@@ -46,10 +46,7 @@ class LocalUpdate(object):
         idxs_train = idxs[:int(len(idxs))]
         idxs_val = idxs[int(0.9*len(idxs)):] # is it iid? needs improve
 
-        if len(idxs_shared) > 0:
-            print('idxs_shared > 0')
-            idxs_train.extend(idxs_shared[:int(len(idxs_shared))])
-            idxs_val.extend(idxs_shared[int(0.9*len(idxs_shared)):])
+
 
         trainloader = DataLoader(DatasetSplit(dataset, idxs_train),
                                  batch_size=self.args.local_bs, shuffle=True)
@@ -77,14 +74,16 @@ class LocalUpdate(object):
             is_best = 0
             batch_loss = []
             model.train()
+            
             for batch_idx, (images, labels) in enumerate(loader):
                 images, labels = images.to(self.device), labels.to(self.device)
-
+                # print(len(images), len(labels))
                 model.zero_grad()
                 log_probs = model(images)
                 loss = self.criterion(log_probs, labels)
+                # optimizer.zero_grad()
                 loss.backward()
-
+               
                 self.logger.add_scalar('loss', loss.item())
                 batch_loss.append(loss.item())
                 optimizer.step()
@@ -99,7 +98,7 @@ class LocalUpdate(object):
                 best_loss = loss
             scheduler.step()
 
-        return best_model.state_dict(), sum(best_epoch_loss) / len(best_epoch_loss)
+        return best_model.state_dict(), sum(best_epoch_loss) / len(best_epoch_loss), best_model
 
     def inference(self, model, global_round=1000,user=1000):
 
@@ -151,6 +150,7 @@ def test_inference(args, model, test_dataset):
     loss, total, correct = 0.0, 0.0, 0.0
 
     device = (f'cuda:{str(args.gpu)}')  if torch.cuda.is_available() else 'cpu'
+    # print("device",device)
     criterion = nn.CrossEntropyLoss().to(device)
     testloader = DataLoader(test_dataset, batch_size=128,
                             shuffle=False)

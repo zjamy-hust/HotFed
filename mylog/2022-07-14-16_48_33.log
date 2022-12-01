@@ -1,0 +1,14 @@
+2022-07-14-16_48_33
+
+Experimental details:
+    Model     : resnet18
+    Optimizer : sgd
+    Learning  : 0.01
+    Global Rounds   : 1
+
+    Federated parameters:
+    Non-IID
+    Local Batch size   : 128
+    Local Epochs       : 1
+
+    num_users   : 16

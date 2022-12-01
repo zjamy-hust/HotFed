@@ -16,6 +16,7 @@ from upre_utils import *
 from imbalance_cifar import ImbalanceCIFAR10
 from pretrain_resnet import ResNet18
 from pretrain_shufflenetv2 import ShuffleNetV2
+from pretrain_models_resnext import resnext
 
 model_names = sorted(name for name in models.__dict__
                      if name.islower() and not name.startswith("__")
@@ -24,7 +25,7 @@ model_names = sorted(name for name in models.__dict__
 
 parser = argparse.ArgumentParser()
 parser.add_argument('--dataset', default='cifar10')
-parser.add_argument('--data_path', type=str, default='../data/cifar')
+parser.add_argument('--data_path', type=str, default='../data')
 parser.add_argument('-a', '--arch', metavar='ARCH', default='resnet50', 
                     help='model architecture: ' + ' | '.join(model_names))
 parser.add_argument('--loss_type', default="CE", type=str, help='loss type')
@@ -99,6 +100,8 @@ def main_worker(gpu, args):
            model = ResNet18()
     elif args.arch == 'shufflenetv2':
             model = ShuffleNetV2(1)
+    elif args.arch == 'resnext':
+            model = resnext(cardinality=8,num_classes=100,depth=29,widen_factor=4,dropRate=0)
     else:
         num_classes = 4
         use_norm = True 
@@ -149,6 +152,21 @@ def main_worker(gpu, args):
         train_dataset = datasets.CIFAR10(root=args.data_path,
                                        train=True, download=True, transform=transform_train)
         val_dataset = datasets.CIFAR10(root=args.data_path,
+                                       train=False, download=True, transform=transform_val)
+        if args.shared_data:
+            train_dataset = DatasetSplit(train_dataset, [i for i in range(int(len(train_dataset)*(1-args.shared_data)),len(train_dataset))])
+            val_dataset = DatasetSplit(val_dataset, [i for i in range(int(len(val_dataset)*(1-args.shared_data)),len(val_dataset))])
+        train_sampler = None
+
+        train_loader = DataLoader(
+            train_dataset, batch_size=args.batch_size, shuffle=(train_sampler is None),
+            num_workers=args.workers, pin_memory=True, sampler=train_sampler)
+        val_loader = DataLoader(val_dataset, batch_size=100, shuffle=False,
+                                                 num_workers=args.workers, pin_memory=True) 
+    elif args.dataset == 'cifar100':
+        train_dataset = datasets.CIFAR100(root=args.data_path,
+                                       train=True, download=True, transform=transform_train)
+        val_dataset = datasets.CIFAR100(root=args.data_path,
                                        train=False, download=True, transform=transform_val)
         if args.shared_data:
             train_dataset = DatasetSplit(train_dataset, [i for i in range(int(len(train_dataset)*(1-args.shared_data)),len(train_dataset))])

@@ -1,0 +1,15 @@
+2022-07-14-08_30_21
+
+Experimental details:
+    Model     : resnext
+    Optimizer : sgd
+    Learning  : 0.01
+    Global Rounds   : 1
+
+    Federated parameters:
+    IID
+    Local Batch size   : 64
+    Local Epochs       : 1
+
+    num_users   : 2
+    pretrained_model   : ./checkpoint/pretrain-cifar100-resnext.best.pth.tar
