@@ -98,7 +98,7 @@ class LocalUpdate(object):
                 best_loss = loss
             scheduler.step()
 
-        return best_model.state_dict(), sum(best_epoch_loss) / len(best_epoch_loss)
+        return best_model.state_dict(), sum(best_epoch_loss) / len(best_epoch_loss), best_model
 
     def inference(self, model, global_round=1000,user=1000):
 
@@ -150,6 +150,7 @@ def test_inference(args, model, test_dataset):
     loss, total, correct = 0.0, 0.0, 0.0
 
     device = (f'cuda:{str(args.gpu)}')  if torch.cuda.is_available() else 'cpu'
+    # print("device",device)
     criterion = nn.CrossEntropyLoss().to(device)
     testloader = DataLoader(test_dataset, batch_size=128,
                             shuffle=False)
