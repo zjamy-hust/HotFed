@@ -147,17 +147,15 @@ apply_transform = transforms.Compose(
             [transforms.ToTensor(),
              transforms.Normalize((0.4914, 0.4822, 0.4465), (0.2023, 0.1994, 0.2010))])
 
-
+# To prepare the XAI assets
 classes = ('plane', 'car', 'bird', 'cat',
            'deer', 'dog', 'frog', 'horse', 'ship', 'truck')
-
-
-
+# classes = ('plane' 0, 'car' 1, 'bird' 2, 'cat' 3,
+#            'deer' 4, 'dog' 5, 'frog' 6, 'horse' 7, 'ship' 8, 'truck' 9)
+XAI_labels=[7, 8, 2, 2, 0, 5, 7, 9, 2, 8, 8, 2, 8, 2, 5, 8, 0, 7, 5, 5,1,1,3,3,4,4,6,6,9,3 ]
 path = str(Path(asset_path)/'folder')
 print(path)
 files = os.listdir(path)
-d = []
-
 
 
 criterion = nn.CrossEntropyLoss()
@@ -170,9 +168,7 @@ net.eval()
 
 
 i=0;
-# classes = ('plane' 0, 'car' 1, 'bird' 2, 'cat' 3,
-#            'deer' 4, 'dog' 5, 'frog' 6, 'horse' 7, 'ship' 8, 'truck' 9)
-XAI_labels=[7, 8, 2, 2, 0, 5, 7, 9, 2, 8, 8, 2, 8, 2, 5, 8, 0, 7, 5, 5,1,1,3,3,4,4,6,6,9,3 ]
+
 for im_name in files:
     if im_name.endswith('.jpg'):
         # if i>1:
