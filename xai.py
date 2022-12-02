@@ -82,7 +82,6 @@ class BasicBlock(nn.Module):
         self.conv2 = nn.Conv2d(planes, planes, kernel_size=3,
                                stride=1, padding=1, bias=False)
         self.bn2 = nn.BatchNorm2d(planes)
-
         self.shortcut = nn.Sequential()
         if stride != 1 or in_planes != self.expansion*planes:
             self.shortcut = nn.Sequential(
@@ -166,20 +165,20 @@ for im_name in files:
         #     break
         i=i+1
         print(str(Path(path)/im_name))
-        im_temp=read_image(str(Path(path)/im_name))
+        im_asset=read_image(str(Path(path)/im_name))
         
-        original_image_temp = fn.resize(im_temp, size=[32,32])/255
-        input_temp=torch.tensor(original_image_temp.unsqueeze(0).cpu().detach().numpy())
-        input_temp.requires_grad = True
-        img = original_image_temp     # unnormalize
+        original_image_asset = fn.resize(im_asset, size=[32,32])/255
+        input_asset=torch.tensor(original_image_asset.unsqueeze(0).cpu().detach().numpy())
+        input_asset.requires_grad = True
+        img = original_image_asset     # unnormalize
         npimg = img.numpy()
         
-        input_temp_norm=fn.normalize(input_temp, mean=[0.4914, 0.4822, 0.4465], std=[0.2023, 0.1994, 0.2010])
+        input_asset_norm=fn.normalize(input_asset, mean=[0.4914, 0.4822, 0.4465], std=[0.2023, 0.1994, 0.2010])
 
-        input_temp_norm=input_temp_norm.to(device)
-        output_temp = net(input_temp_norm)
-        _, predicted_temp = torch.max(output_temp, 1)
-        print("predicted_temp",classes[predicted_temp[0]],"Truth", classes[XAI_labels[int(im_name[:-4])-1]])
+        input_asset_norm=input_asset_norm.to(device)
+        output_asset = net(input_asset_norm)
+        _, predicted_asset = torch.max(output_asset, 1)
+        print("predicted_asset",classes[predicted_asset[0]],"Truth", classes[XAI_labels[int(im_name[:-4])-1]])
         
         mask_im_name = im_name[:-4]+'_mask.png'
         print("mask_im_name",mask_im_name)
@@ -192,8 +191,8 @@ for im_name in files:
 
         ig = IntegratedGradients(net)
         nt = NoiseTunnel(ig)
-        input_temp=input_temp.to(device)
-        attr_ig_nt = attribute_image_features(nt, input_temp,truth=XAI_labels[int(im_name[:-4])-1], label=predicted_temp[0], baselines=input_temp * 0, nt_type='smoothgrad_sq',  nt_samples=100, stdevs=0.2)
+        input_asset=input_asset.to(device)
+        attr_ig_nt = attribute_image_features(nt, input_asset,truth=XAI_labels[int(im_name[:-4])-1], label=predicted_asset[0], baselines=input_asset * 0, nt_type='smoothgrad_sq',  nt_samples=100, stdevs=0.2)
         attr_ig_nt = np.transpose(attr_ig_nt.squeeze(0).cpu().detach().numpy(), (1, 2, 0))
 
 
