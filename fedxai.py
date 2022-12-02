@@ -192,13 +192,14 @@ if __name__ == '__main__':
             w, loss, lw  = local_model.update_weights(
                 model=copy.deepcopy(global_model), global_round=epoch, user=idx)
 
-            # #simulate this will happen in the enclave or cloud side
-            # local_test_acc, local_test_loss =  test_inference(args, model=copy.deepcopy(lw), test_dataset=test_dataset)
-            # local_test_acc_list.append((idx,str(local_test_acc)))
-            # local_test_loss_list.append((idx,str(local_test_loss)))
+            #simulate this will happen in the enclave or cloud side
+            local_test_acc, local_test_loss =  test_inference(args, model=copy.deepcopy(lw), test_dataset=test_dataset)
+            local_test_acc_list.append((idx,str(local_test_acc)))
+            local_test_loss_list.append((idx,str(local_test_loss)))
 
             ##### add XAI calc here #####
-            in_mask_acc_mean,out_mask_acc_mean,XAI_ACC=XAI_evaluate(lw,files,assetpath,showimg=0,p=0,device=device,XAI_labels=XAI_labels)
+            # xai_device= (f'cuda:{str(args.gpu-1)}')  if torch.cuda.is_available() else 'cpu'
+            in_mask_acc_mean,out_mask_acc_mean,XAI_ACC=XAI_evaluate(copy.deepcopy(lw),files,assetpath,showimg=0,p=0,device=device,XAI_labels=XAI_labels,classes=classes)
             #######end XAI calc#####
 
             local_weights.append(copy.deepcopy(w))
@@ -213,26 +214,26 @@ if __name__ == '__main__':
             log.logger.debug(f'Global:{epoch}, user:{idx}, size:{len(user_groups[idx])} loss: {loss:.4f}')
             optimizer.step() #not sure whether making it inside idx or outside idx
 
-#         #####client selection to be added here######
+        #####client selection to be added here######
         
-#         #select top 12 acc & loss
-#         #select top 12 XAI data
-#         #selected = 1           
-#         # Initializing N 
-#         N = 15
+        #select top 12 acc & loss
+        #select top 12 XAI data
+        #selected = 1           
+        # Initializing N 
+        N = 15
         
-#         # printing original list
-#         print("The original list is : " + str(local_test_acc_list))
+        # printing original list
+        print("The original list is : " + str(local_test_acc_list))
         
-#         # Get Top N elements from Records
-#         # Using sorted() + itemgetter()
-#         res = sorted(local_test_acc_list, key=itemgetter(1), reverse = True)[:N]
-#         print("The sorted list is : " + str(res))
-#         selected_list = []
-#         for item in res:
-#             selected_list.append(item[0])
-#         print("The selected client list is : " + str(selected_list))
-#         #####client selection end####################
+        # Get Top N elements from Records
+        # Using sorted() + itemgetter()
+        res = sorted(local_test_acc_list, key=itemgetter(1), reverse = True)[:N]
+        print("The sorted list is : " + str(res))
+        selected_list = []
+        for item in res:
+            selected_list.append(item[0])
+        print("The selected client list is : " + str(selected_list))
+        #####client selection end####################
 
         # update global weights
         global_weights = average_weights(local_weights,selected_list)

@@ -8,9 +8,10 @@ import captum
 import torchvision
 import torchvision.transforms as transforms
 import torchvision.transforms.functional as fn
+from torchvision import models
 from statistics import mean
 
-from torchvision import models
+
 
 from captum.attr import IntegratedGradients
 from captum.attr import Saliency
@@ -39,6 +40,7 @@ args = args_parser()
 args.gpu=3
 device = (f'cuda:{str(args.gpu)}')  if torch.cuda.is_available() else 'cpu'
 # showimg=1
+run=0
 
 
 model_path="/workspace/externalhome/XAI/HotFed/save_checkpoints/xai_analysis/global.iid1.16_15.pth.tar"
@@ -72,100 +74,103 @@ def imshow(img, transpose = True):
     plt.show()
 
 
-class BasicBlock(nn.Module):
-    expansion = 1
+if run==1 :
+    class BasicBlock(nn.Module):
+        expansion = 1
 
-    def __init__(self, in_planes, planes, stride=1):
-        super(BasicBlock, self).__init__()
-        self.conv1 = nn.Conv2d(
-            in_planes, planes, kernel_size=3, stride=stride, padding=1, bias=False)
-        self.bn1 = nn.BatchNorm2d(planes)
-        self.conv2 = nn.Conv2d(planes, planes, kernel_size=3,
-                               stride=1, padding=1, bias=False)
-        self.bn2 = nn.BatchNorm2d(planes)
-        self.shortcut = nn.Sequential()
-        if stride != 1 or in_planes != self.expansion*planes:
-            self.shortcut = nn.Sequential(
-                nn.Conv2d(in_planes, self.expansion*planes,
-                          kernel_size=1, stride=stride, bias=False),
-                nn.BatchNorm2d(self.expansion*planes)
-            )
+        def __init__(self, in_planes, planes, stride=1):
+            super(BasicBlock, self).__init__()
+            self.conv1 = nn.Conv2d(
+                in_planes, planes, kernel_size=3, stride=stride, padding=1, bias=False)
+            self.bn1 = nn.BatchNorm2d(planes)
+            self.conv2 = nn.Conv2d(planes, planes, kernel_size=3,
+                                   stride=1, padding=1, bias=False)
+            self.bn2 = nn.BatchNorm2d(planes)
+            self.shortcut = nn.Sequential()
+            if stride != 1 or in_planes != self.expansion*planes:
+                self.shortcut = nn.Sequential(
+                    nn.Conv2d(in_planes, self.expansion*planes,
+                              kernel_size=1, stride=stride, bias=False),
+                    nn.BatchNorm2d(self.expansion*planes)
+                )
 
-    def forward(self, x):
-        out = F.relu(self.bn1(self.conv1(x)))
-        out = self.bn2(self.conv2(out))
-        out += self.shortcut(x)
-        out = F.relu(out)
-        return out
-
-
-
-class ResNet(nn.Module):
-    def __init__(self, block, num_blocks, num_classes=100):
-        super(ResNet, self).__init__()
-        self.in_planes = 64
-
-        self.conv1 = nn.Conv2d(3, 64, kernel_size=3,
-                               stride=1, padding=1, bias=False)
-        self.bn1 = nn.BatchNorm2d(64)
-        self.layer1 = self._make_layer(block, 64, num_blocks[0], stride=1)
-        self.layer2 = self._make_layer(block, 128, num_blocks[1], stride=2)
-        self.layer3 = self._make_layer(block, 256, num_blocks[2], stride=2)
-        self.layer4 = self._make_layer(block, 512, num_blocks[3], stride=2)
-        self.linear = nn.Linear(512*block.expansion, num_classes)
-
-    def _make_layer(self, block, planes, num_blocks, stride):
-        strides = [stride] + [1]*(num_blocks-1)
-        layers = []
-        for stride in strides:
-            layers.append(block(self.in_planes, planes, stride))
-            self.in_planes = planes * block.expansion
-        return nn.Sequential(*layers)
-
-    def forward(self, x):
-        out = F.relu(self.bn1(self.conv1(x)))
-        out = self.layer1(out)
-        out = self.layer2(out)
-        out = self.layer3(out)
-        out = self.layer4(out)
-        out = F.avg_pool2d(out, 4)
-        out = out.view(out.size(0), -1)
-        out = self.linear(out)
-        return out
-
-
-def ResNet18():
-    return ResNet(BasicBlock, [2, 2, 2, 2])
-
-
-# To prepare the XAI assets
-classes = ('plane', 'car', 'bird', 'cat',
-           'deer', 'dog', 'frog', 'horse', 'ship', 'truck')
-# classes = ('plane' 0, 'car' 1, 'bird' 2, 'cat' 3,
-#            'deer' 4, 'dog' 5, 'frog' 6, 'horse' 7, 'ship' 8, 'truck' 9)
-XAI_labels=[7, 8, 2, 2, 0, 5, 7, 9, 2, 8, 8, 2, 8, 2, 5, 8, 0, 7, 5, 5,1,1,3,3,4,4,6,6,9,3 ]
-assetpath = str(Path(asset_path)/'folder')
-print("assetpath",assetpath)
-files = os.listdir(assetpath)
-
-#To prepare network
-torch.cuda.set_device(args.gpu)
-net = ResNet18()
-criterion = nn.CrossEntropyLoss()
-optimizer = optim.SGD(net.parameters(), lr=0.001, momentum=0.9)
-checkpoint = torch.load(model_path)
-net.load_state_dict(checkpoint['state_dict'])
-net.to(device)
-net.eval()
+        def forward(self, x):
+            out = F.relu(self.bn1(self.conv1(x)))
+            out = self.bn2(self.conv2(out))
+            out += self.shortcut(x)
+            out = F.relu(out)
+            return out
 
 
 
+    class ResNet(nn.Module):
+        def __init__(self, block, num_blocks, num_classes=100):
+            super(ResNet, self).__init__()
+            self.in_planes = 64
 
-def XAI_evaluate(net_x,files, path, showimg,p,device, XAI_labels):
+            self.conv1 = nn.Conv2d(3, 64, kernel_size=3,
+                                   stride=1, padding=1, bias=False)
+            self.bn1 = nn.BatchNorm2d(64)
+            self.layer1 = self._make_layer(block, 64, num_blocks[0], stride=1)
+            self.layer2 = self._make_layer(block, 128, num_blocks[1], stride=2)
+            self.layer3 = self._make_layer(block, 256, num_blocks[2], stride=2)
+            self.layer4 = self._make_layer(block, 512, num_blocks[3], stride=2)
+            self.linear = nn.Linear(512*block.expansion, num_classes)
+
+        def _make_layer(self, block, planes, num_blocks, stride):
+            strides = [stride] + [1]*(num_blocks-1)
+            layers = []
+            for stride in strides:
+                layers.append(block(self.in_planes, planes, stride))
+                self.in_planes = planes * block.expansion
+            return nn.Sequential(*layers)
+
+        def forward(self, x):
+            out = F.relu(self.bn1(self.conv1(x)))
+            out = self.layer1(out)
+            out = self.layer2(out)
+            out = self.layer3(out)
+            out = self.layer4(out)
+            out = F.avg_pool2d(out, 4)
+            out = out.view(out.size(0), -1)
+            out = self.linear(out)
+            return out
+
+
+    def ResNet18():
+        return ResNet(BasicBlock, [2, 2, 2, 2])
+
+
+    # To prepare the XAI assets
+    classes = ('plane', 'car', 'bird', 'cat',
+               'deer', 'dog', 'frog', 'horse', 'ship', 'truck')
+    # classes = ('plane' 0, 'car' 1, 'bird' 2, 'cat' 3,
+    #            'deer' 4, 'dog' 5, 'frog' 6, 'horse' 7, 'ship' 8, 'truck' 9)
+    XAI_labels=[7, 8, 2, 2, 0, 5, 7, 9, 2, 8, 8, 2, 8, 2, 5, 8, 0, 7, 5, 5,1,1,3,3,4,4,6,6,9,3 ]
+    assetpath = str(Path(asset_path)/'folder')
+    print("assetpath",assetpath)
+    files = os.listdir(assetpath)
+
+    #To prepare network
+    torch.cuda.set_device(args.gpu)
+    net = ResNet18()
+    criterion = nn.CrossEntropyLoss()
+    optimizer = optim.SGD(net.parameters(), lr=0.001, momentum=0.9)
+    checkpoint = torch.load(model_path)
+    net.load_state_dict(checkpoint['state_dict'])
+    net.to(device)
+    net.eval()
+
+
+
+
+def XAI_evaluate(net_x,files, path, showimg,p,device, XAI_labels,classes):
     XAI_inmask_list = []
     XAI_outmask_list = []
     i=0;
     correct=0;
+    ig = IntegratedGradients(net_x)
+    nt = NoiseTunnel(ig)
     for im_name in files:
         if im_name.endswith('.jpg'):
             # if i>1:
@@ -199,15 +204,12 @@ def XAI_evaluate(net_x,files, path, showimg,p,device, XAI_labels):
             if p:
                 print("pixelnum_all", pixelnum_all)
 
-
-            ig = IntegratedGradients(net_x)
-            nt = NoiseTunnel(ig)
             input_asset=input_asset.to(device)
+            torch.cuda.empty_cache()
             #the 2nd parameter can be input_asset or input_asset_norm, input_asset_norm will show better ACC in XAI
-            attr_ig_nt = attribute_image_features(net_x,nt, input_asset_norm,truth=XAI_labels[int(im_name[:-4])-1], label=predicted_asset[0], baselines=input_asset * 0, nt_type='smoothgrad_sq',  nt_samples=100, stdevs=0.2)
+            attr_ig_nt = attribute_image_features(net_x,nt, input_asset_norm,truth=XAI_labels[int(im_name[:-4])-1], label=predicted_asset[0], baselines=input_asset * 0, nt_type='smoothgrad_sq',  nt_samples=50, stdevs=0.2)
             attr_ig_nt = np.transpose(attr_ig_nt.squeeze(0).cpu().detach().numpy(), (1, 2, 0))
-
-
+            
             outlier_perc = 10
             attr_combined = np.sum(attr_ig_nt, axis=2)
             attr_combined = np.abs(attr_combined)
@@ -231,7 +233,8 @@ def XAI_evaluate(net_x,files, path, showimg,p,device, XAI_labels):
 
             if inmask_percent > outmask_percent:
                 correct = correct+1
-
+            
+            torch.cuda.empty_cache()
             if showimg==1 and i%2 == 1:
                 fig, (orig, mask, attr, attr_mask, attr_outmask) = plt.subplots(1, 5)
                 orig.axis('off')
@@ -258,6 +261,7 @@ def XAI_evaluate(net_x,files, path, showimg,p,device, XAI_labels):
     return in_mask_acc_mean,out_mask_acc_mean,correct/i
 
 
-a,b,c = XAI_evaluate(net,files,assetpath,1,1,device=device,XAI_labels=XAI_labels)
+if run==1 :
+    a,b,c = XAI_evaluate(net,files,assetpath,1,1,device=device,XAI_labels=XAI_labels, classes=classes)
 
-print("a",a,"b",b,"c",c)
+    print("a",a,"b",b,"c",c)
