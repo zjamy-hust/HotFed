@@ -23,6 +23,8 @@ from models.models_resnet import ResNet18
 from models.models_shufflenetv2 import ShuffleNetV2
 from models.models_resnext import resnext
 from operator import itemgetter, attrgetter
+from xai import XAI_evaluate
+from pathlib import Path
 best_local_acc = 0
 best_global_acc = 0
 pretrained_model='./checkpoints/pre_ckpt.best.pth.tar'
@@ -60,6 +62,16 @@ class Logger(object):
         # self.logger.addHandler(sh) #把对象加到logger里
         self.logger.addHandler(th)
 
+        
+asset_path='/workspace/externalhome/XAI/HotFed/assets'
+classes = ('plane', 'car', 'bird', 'cat',
+       'deer', 'dog', 'frog', 'horse', 'ship', 'truck')
+# classes = ('plane' 0, 'car' 1, 'bird' 2, 'cat' 3,
+#            'deer' 4, 'dog' 5, 'frog' 6, 'horse' 7, 'ship' 8, 'truck' 9)
+XAI_labels=[7, 8, 2, 2, 0, 5, 7, 9, 2, 8, 8, 2, 8, 2, 5, 8, 0, 7, 5, 5,1,1,3,3,4,4,6,6,9,3 ]
+assetpath = str(Path(asset_path)/'folder')
+print("assetpath",assetpath)
+files = os.listdir(assetpath)        
 
 if __name__ == '__main__':
     log = Logger('mylog/'+time.strftime("%Y-%m-%d-%H_%M_%S", time.localtime())+'.log',level='debug')
@@ -157,6 +169,8 @@ if __name__ == '__main__':
 
     test_loss_list = []
     test_acc_list = []
+
+    
     for epoch in range(start_epoch, start_epoch+args.epochs):
         is_best = 0
         local_weights, local_losses= [], []
@@ -178,12 +192,13 @@ if __name__ == '__main__':
             w, loss, lw  = local_model.update_weights(
                 model=copy.deepcopy(global_model), global_round=epoch, user=idx)
 
-            #simulate this will happen in the enclave or cloud side
-            local_test_acc, local_test_loss =  test_inference(args, model=copy.deepcopy(lw), test_dataset=test_dataset)
-            local_test_acc_list.append((idx,str(local_test_acc)))
-            local_test_loss_list.append((idx,str(local_test_loss)))
+            # #simulate this will happen in the enclave or cloud side
+            # local_test_acc, local_test_loss =  test_inference(args, model=copy.deepcopy(lw), test_dataset=test_dataset)
+            # local_test_acc_list.append((idx,str(local_test_acc)))
+            # local_test_loss_list.append((idx,str(local_test_loss)))
 
             ##### add XAI calc here #####
+            in_mask_acc_mean,out_mask_acc_mean,XAI_ACC=XAI_evaluate(lw,files,assetpath,showimg=0,p=0,device=device,XAI_labels=XAI_labels)
             #######end XAI calc#####
 
             local_weights.append(copy.deepcopy(w))
@@ -198,26 +213,26 @@ if __name__ == '__main__':
             log.logger.debug(f'Global:{epoch}, user:{idx}, size:{len(user_groups[idx])} loss: {loss:.4f}')
             optimizer.step() #not sure whether making it inside idx or outside idx
 
-        #####client selection to be added here######
+#         #####client selection to be added here######
         
-        #select top 12 acc & loss
-        #select top 12 XAI data
-        #selected = 1           
-        # Initializing N 
-        N = 15
+#         #select top 12 acc & loss
+#         #select top 12 XAI data
+#         #selected = 1           
+#         # Initializing N 
+#         N = 15
         
-        # printing original list
-        print("The original list is : " + str(local_test_acc_list))
+#         # printing original list
+#         print("The original list is : " + str(local_test_acc_list))
         
-        # Get Top N elements from Records
-        # Using sorted() + itemgetter()
-        res = sorted(local_test_acc_list, key=itemgetter(1), reverse = True)[:N]
-        print("The sorted list is : " + str(res))
-        selected_list = []
-        for item in res:
-            selected_list.append(item[0])
-        print("The selected client list is : " + str(selected_list))
-        #####client selection end####################
+#         # Get Top N elements from Records
+#         # Using sorted() + itemgetter()
+#         res = sorted(local_test_acc_list, key=itemgetter(1), reverse = True)[:N]
+#         print("The sorted list is : " + str(res))
+#         selected_list = []
+#         for item in res:
+#             selected_list.append(item[0])
+#         print("The selected client list is : " + str(selected_list))
+#         #####client selection end####################
 
         # update global weights
         global_weights = average_weights(local_weights,selected_list)
