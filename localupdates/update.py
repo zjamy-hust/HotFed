@@ -42,8 +42,8 @@ class LocalUpdate(object):
         and user indexes.
         """
         # split indexes for train, validation (90, 10)
-        #idxs_train = idxs[:int(0.9*len(idxs))]
-        idxs_train = idxs[:int(len(idxs))]
+        idxs_train = idxs[:int(0.9*len(idxs))]
+        # idxs_train = idxs[:int(len(idxs))]
         idxs_val = idxs[int(0.9*len(idxs)):] # is it iid? needs improve
 
 
