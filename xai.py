@@ -1,7 +1,7 @@
 import matplotlib.pyplot as plt
 import numpy as np
 
-# %matplotlib inline
+## %matplotlib inline
 
 import torch
 import captum
@@ -227,8 +227,8 @@ XAI_labels=[7, 8, 2, 2, 0, 5, 7, 9, 2, 8, 8, 2, 8, 2, 5, 8, 0, 7, 5, 5,1,1,3,3,4
 for im_name in files:
     if im_name.endswith('.jpg'):
 #     if im_name.endswith('.jpg') and i == 0:
-        if i>1:
-            break
+        # if i>1:
+        #     break
         i=i+1
         print(str(Path(path)/im_name))
         im_temp=read_image(str(Path(path)/im_name))
