@@ -8,6 +8,8 @@ import captum
 import torchvision
 import torchvision.transforms as transforms
 import torchvision.transforms.functional as fn
+from statistics import mean
+
 
 from torchvision import models
 
@@ -37,11 +39,11 @@ import copy
 args = args_parser()
 args.gpu=3
 device = (f'cuda:{str(args.gpu)}')  if torch.cuda.is_available() else 'cpu'
-showimg=0
+# showimg=1
+
 
 
 model_path="/workspace/externalhome/XAI/HotFed/save_checkpoints/xai_analysis/global.iid1.16_15.pth.tar"
-data_path='/workspace/externalhome/XAI/data/'
 asset_path='/workspace/externalhome/XAI/HotFed/assets'
 
 
@@ -56,7 +58,7 @@ def _cumulative_sum_threshold(values: ndarray, percentile: Union[int, float]):
     return sorted_vals[threshold_id]
 
 
-def attribute_image_features(algorithm, input,truth, label, **kwargs):
+def attribute_image_features(net, algorithm, input,truth, label, **kwargs):
     net.zero_grad()
     tensor_attributions = algorithm.attribute(input,
                                               target=truth,
@@ -83,7 +85,6 @@ class BasicBlock(nn.Module):
         self.conv2 = nn.Conv2d(planes, planes, kernel_size=3,
                                stride=1, padding=1, bias=False)
         self.bn2 = nn.BatchNorm2d(planes)
-
         self.shortcut = nn.Sequential()
         if stride != 1 or in_planes != self.expansion*planes:
             self.shortcut = nn.Sequential(
@@ -139,109 +140,126 @@ def ResNet18():
     return ResNet(BasicBlock, [2, 2, 2, 2])
 
 
-torch.cuda.set_device(args.gpu)
-
-net = ResNet18()
-
-apply_transform = transforms.Compose(
-            [transforms.ToTensor(),
-             transforms.Normalize((0.4914, 0.4822, 0.4465), (0.2023, 0.1994, 0.2010))])
-
-
+# To prepare the XAI assets
 classes = ('plane', 'car', 'bird', 'cat',
            'deer', 'dog', 'frog', 'horse', 'ship', 'truck')
+# classes = ('plane' 0, 'car' 1, 'bird' 2, 'cat' 3,
+#            'deer' 4, 'dog' 5, 'frog' 6, 'horse' 7, 'ship' 8, 'truck' 9)
+XAI_labels=[7, 8, 2, 2, 0, 5, 7, 9, 2, 8, 8, 2, 8, 2, 5, 8, 0, 7, 5, 5,1,1,3,3,4,4,6,6,9,3 ]
+assetpath = str(Path(asset_path)/'folder')
+print("assetpath",assetpath)
+files = os.listdir(assetpath)
 
-
-
-path = str(Path(asset_path)/'folder')
-print(path)
-files = os.listdir(path)
-d = []
-
-
-
+#To prepare network
+torch.cuda.set_device(args.gpu)
+net = ResNet18()
 criterion = nn.CrossEntropyLoss()
 optimizer = optim.SGD(net.parameters(), lr=0.001, momentum=0.9)
-
 checkpoint = torch.load(model_path)
 net.load_state_dict(checkpoint['state_dict'])
 net.to(device)
 net.eval()
 
 
-i=0;
-# classes = ('plane' 0, 'car' 1, 'bird' 2, 'cat' 3,
-#            'deer' 4, 'dog' 5, 'frog' 6, 'horse' 7, 'ship' 8, 'truck' 9)
-XAI_labels=[7, 8, 2, 2, 0, 5, 7, 9, 2, 8, 8, 2, 8, 2, 5, 8, 0, 7, 5, 5,1,1,3,3,4,4,6,6,9,3 ]
-for im_name in files:
-    if im_name.endswith('.jpg'):
-        # if i>1:
-        #     break
-        i=i+1
-        print(str(Path(path)/im_name))
-        im_temp=read_image(str(Path(path)/im_name))
-        
-        original_image_temp = fn.resize(im_temp, size=[32,32])/255
-        input_temp=torch.tensor(original_image_temp.unsqueeze(0).cpu().detach().numpy())
-        input_temp.requires_grad = True
-        img = original_image_temp     # unnormalize
-        npimg = img.numpy()
-        
-        input_temp_norm=fn.normalize(input_temp, mean=[0.4914, 0.4822, 0.4465], std=[0.2023, 0.1994, 0.2010])
 
-        input_temp_norm=input_temp_norm.to(device)
-        output_temp = net(input_temp_norm)
-        _, predicted_temp = torch.max(output_temp, 1)
-        print("predicted_temp",classes[predicted_temp[0]],"Truth", classes[XAI_labels[int(im_name[:-4])-1]])
-        
-        mask_im_name = im_name[:-4]+'_mask.png'
-        print("mask_im_name",mask_im_name)
-        truth_mask_tensor = read_image(str(Path(path)/mask_im_name),mode=torchvision.io.image.ImageReadMode.RGB)
-        truth_mask = cv2.imread(str(Path(path)/mask_im_name),cv2.IMREAD_GRAYSCALE)
-        truth_mask_np=truth_mask_tensor.numpy()
-        pixelnum_all=np.count_nonzero(truth_mask_np)
-        print("pixelnum_all", pixelnum_all)
+def XAI_evaluate(net_x,files, path, showimg,p,device, XAI_labels):
+    XAI_inmask_list = []
+    XAI_outmask_list = []
+    i=0;
+    correct=0;
+    for im_name in files:
+        if im_name.endswith('.jpg'):
+            # if i>1:
+            #     break
+            i=i+1
+            if p:
+                print(str(Path(path)/im_name))
+            im_asset=read_image(str(Path(path)/im_name))
+
+            original_image_asset = fn.resize(im_asset, size=[32,32])/255
+            input_asset=torch.tensor(original_image_asset.unsqueeze(0).cpu().detach().numpy())
+            input_asset.requires_grad = True
+            img = original_image_asset     # unnormalize
+            npimg = img.numpy()
+
+            input_asset_norm=fn.normalize(input_asset, mean=[0.4914, 0.4822, 0.4465], std=[0.2023, 0.1994, 0.2010])
+
+            input_asset_norm=input_asset_norm.to(device)
+            output_asset = net_x(input_asset_norm)
+            _, predicted_asset = torch.max(output_asset, 1)
+            if p:
+                print("predicted_asset",classes[predicted_asset[0]],"Truth", classes[XAI_labels[int(im_name[:-4])-1]])
+
+            mask_im_name = im_name[:-4]+'_mask.png'
+            if p:
+                print("mask_im_name",mask_im_name)
+            truth_mask_tensor = read_image(str(Path(path)/mask_im_name),mode=torchvision.io.image.ImageReadMode.RGB)
+            truth_mask = cv2.imread(str(Path(path)/mask_im_name),cv2.IMREAD_GRAYSCALE)
+            truth_mask_np=truth_mask_tensor.numpy()
+            pixelnum_all=np.count_nonzero(truth_mask_np)
+            if p:
+                print("pixelnum_all", pixelnum_all)
 
 
-        ig = IntegratedGradients(net)
-        nt = NoiseTunnel(ig)
-        input_temp=input_temp.to(device)
-        attr_ig_nt = attribute_image_features(nt, input_temp,truth=XAI_labels[int(im_name[:-4])-1], label=predicted_temp[0], baselines=input_temp * 0, nt_type='smoothgrad_sq',  nt_samples=100, stdevs=0.2)
-        attr_ig_nt = np.transpose(attr_ig_nt.squeeze(0).cpu().detach().numpy(), (1, 2, 0))
+            ig = IntegratedGradients(net_x)
+            nt = NoiseTunnel(ig)
+            input_asset=input_asset.to(device)
+            #the 2nd parameter can be input_asset or input_asset_norm, input_asset_norm will show better ACC in XAI
+            attr_ig_nt = attribute_image_features(net_x,nt, input_asset_norm,truth=XAI_labels[int(im_name[:-4])-1], label=predicted_asset[0], baselines=input_asset * 0, nt_type='smoothgrad_sq',  nt_samples=100, stdevs=0.2)
+            attr_ig_nt = np.transpose(attr_ig_nt.squeeze(0).cpu().detach().numpy(), (1, 2, 0))
 
 
-        outlier_perc = 10
-        attr_combined = np.sum(attr_ig_nt, axis=2)
-        attr_combined = np.abs(attr_combined)
-        threshold = _cumulative_sum_threshold(attr_combined, 100 - outlier_perc)
-        attr_norm = attr_combined / threshold
-        attr_norm=attr_norm*(attr_norm>0.3)
-        
-        masked = cv2.add(attr_norm, np.zeros(np.shape(attr_norm), dtype=float), mask=truth_mask) 
-        out_mask = cv2.add(attr_norm, np.zeros(np.shape(attr_norm), dtype=float), mask=255-truth_mask) 
+            outlier_perc = 10
+            attr_combined = np.sum(attr_ig_nt, axis=2)
+            attr_combined = np.abs(attr_combined)
+            threshold = _cumulative_sum_threshold(attr_combined, 100 - outlier_perc)
+            attr_norm = attr_combined / threshold
+            attr_norm=attr_norm*(attr_norm>0.3)
 
-        pixelnum=np.count_nonzero(masked)
-        print("in mask pixelnum", pixelnum,pixelnum_all,pixelnum/pixelnum_all)
-        out_pixelnum=np.count_nonzero(out_mask)
-        print("out mask pixelnum", out_pixelnum,3*32*32-pixelnum_all, out_pixelnum/(3*32*32-pixelnum_all))
-        
-        if showimg==1 and i%2 == 1:
-            fig, (orig, mask, attr, attr_mask, attr_outmask) = plt.subplots(1, 5)
-            orig.axis('off')
-            mask.axis('off')
-            attr.axis('off')
-            attr_mask.axis('off')
-            attr_outmask.axis('off')
-            orig.imshow(np.transpose(npimg, (1, 2, 0)))
-            default_cmap = LinearSegmentedColormap.from_list(
-                "RdWhGn", ["red", "white", "green"]
-            )
-            vmin, vmax = -1, 1
-            attr.imshow(attr_norm,cmap=default_cmap,vmin=vmin,vmax=vmax)
-            mask.imshow(truth_mask,cmap="Blues",vmin=0,vmax=1)
-            attr.imshow(attr_norm,cmap=default_cmap,vmin=vmin,vmax=vmax)
-            mask.imshow(truth_mask,cmap="Blues",vmin=0,vmax=1)
-            attr_mask.imshow(masked,cmap="Greens",vmin=0,vmax=1)
-            attr_outmask.imshow(out_mask,cmap="Reds",vmin=0,vmax=1)
-            fig.show()
-        # plt.close(fig)
+            masked = cv2.add(attr_norm, np.zeros(np.shape(attr_norm), dtype=float), mask=truth_mask) 
+            out_mask = cv2.add(attr_norm, np.zeros(np.shape(attr_norm), dtype=float), mask=255-truth_mask) 
+
+            inmask_pixelnum=np.count_nonzero(masked)
+            inmask_percent=inmask_pixelnum/pixelnum_all
+            if p:
+                print("in mask pixelnum", inmask_pixelnum,pixelnum_all,inmask_percent)
+            XAI_inmask_list.append(inmask_percent)
+            out_pixelnum=np.count_nonzero(out_mask)
+            outmask_percent=out_pixelnum/(3*32*32-pixelnum_all)
+            if p:
+                print("out mask pixelnum", out_pixelnum,3*32*32-pixelnum_all, outmask_percent)
+            XAI_outmask_list.append(outmask_percent)
+
+            if inmask_percent > outmask_percent:
+                correct = correct+1
+
+            if showimg==1 and i%2 == 1:
+                fig, (orig, mask, attr, attr_mask, attr_outmask) = plt.subplots(1, 5)
+                orig.axis('off')
+                mask.axis('off')
+                attr.axis('off')
+                attr_mask.axis('off')
+                attr_outmask.axis('off')
+                orig.imshow(np.transpose(npimg, (1, 2, 0)))
+                default_cmap = LinearSegmentedColormap.from_list(
+                    "RdWhGn", ["red", "white", "green"]
+                )
+                vmin, vmax = -1, 1
+                attr.imshow(attr_norm,cmap=default_cmap,vmin=vmin,vmax=vmax)
+                mask.imshow(truth_mask,cmap="Blues",vmin=0,vmax=1)
+                attr.imshow(attr_norm,cmap=default_cmap,vmin=vmin,vmax=vmax)
+                mask.imshow(truth_mask,cmap="Blues",vmin=0,vmax=1)
+                attr_mask.imshow(masked,cmap="Greens",vmin=0,vmax=1)
+                attr_outmask.imshow(out_mask,cmap="Reds",vmin=0,vmax=1)
+                fig.show()
+            # plt.close(fig)
+    in_mask_acc_mean = mean(XAI_inmask_list)
+    out_mask_acc_mean = mean(XAI_outmask_list)
+    print("in_mask_acc_mean",in_mask_acc_mean,"out_mask_acc_mean",out_mask_acc_mean,"XAI ACC", correct/i)
+    return in_mask_acc_mean,out_mask_acc_mean,correct/i
+
+
+a,b,c = XAI_evaluate(net,files,assetpath,1,1,device=device,XAI_labels=XAI_labels)
+
+print("a",a,"b",b,"c",c)
+
