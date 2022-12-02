@@ -10,6 +10,7 @@ import torchvision.transforms as transforms
 import torchvision.transforms.functional as fn
 from statistics import mean
 
+
 from torchvision import models
 
 from captum.attr import IntegratedGradients
@@ -39,6 +40,7 @@ args = args_parser()
 args.gpu=3
 device = (f'cuda:{str(args.gpu)}')  if torch.cuda.is_available() else 'cpu'
 # showimg=1
+
 
 
 model_path="/workspace/externalhome/XAI/HotFed/save_checkpoints/xai_analysis/global.iid1.16_15.pth.tar"
@@ -160,7 +162,6 @@ net.eval()
 
 
 
-
 def XAI_evaluate(net_x,files, path, showimg,p,device, XAI_labels):
     XAI_inmask_list = []
     XAI_outmask_list = []
@@ -261,3 +262,4 @@ def XAI_evaluate(net_x,files, path, showimg,p,device, XAI_labels):
 a,b,c = XAI_evaluate(net,files,assetpath,1,1,device=device,XAI_labels=XAI_labels)
 
 print("a",a,"b",b,"c",c)
+
