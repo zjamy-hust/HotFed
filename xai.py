@@ -41,7 +41,6 @@ showimg=0
 
 
 model_path="/workspace/externalhome/XAI/HotFed/save_checkpoints/xai_analysis/global.iid1.16_15.pth.tar"
-data_path='/workspace/externalhome/XAI/data/'
 asset_path='/workspace/externalhome/XAI/HotFed/assets'
 
 
@@ -139,14 +138,6 @@ def ResNet18():
     return ResNet(BasicBlock, [2, 2, 2, 2])
 
 
-torch.cuda.set_device(args.gpu)
-
-net = ResNet18()
-
-apply_transform = transforms.Compose(
-            [transforms.ToTensor(),
-             transforms.Normalize((0.4914, 0.4822, 0.4465), (0.2023, 0.1994, 0.2010))])
-
 # To prepare the XAI assets
 classes = ('plane', 'car', 'bird', 'cat',
            'deer', 'dog', 'frog', 'horse', 'ship', 'truck')
@@ -157,10 +148,11 @@ path = str(Path(asset_path)/'folder')
 print(path)
 files = os.listdir(path)
 
-
+#To prepare network
+torch.cuda.set_device(args.gpu)
+net = ResNet18()
 criterion = nn.CrossEntropyLoss()
 optimizer = optim.SGD(net.parameters(), lr=0.001, momentum=0.9)
-
 checkpoint = torch.load(model_path)
 net.load_state_dict(checkpoint['state_dict'])
 net.to(device)
@@ -168,7 +160,6 @@ net.eval()
 
 
 i=0;
-
 for im_name in files:
     if im_name.endswith('.jpg'):
         # if i>1:
