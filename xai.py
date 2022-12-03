@@ -210,7 +210,7 @@ def XAI_evaluate(net_x,files, path, showimg,p,device, XAI_labels,classes):
             attr_ig_nt = attribute_image_features(net_x,nt, input_asset_norm,truth=XAI_labels[int(im_name[:-4])-1], label=predicted_asset[0], baselines=input_asset * 0, nt_type='smoothgrad_sq',  nt_samples=50, stdevs=0.2)
             attr_ig_nt = np.transpose(attr_ig_nt.squeeze(0).cpu().detach().numpy(), (1, 2, 0))
             
-            outlier_perc = 80
+            outlier_perc = 50
             attr_combined = np.sum(attr_ig_nt, axis=2)
             attr_combined = np.abs(attr_combined)
             threshold = _cumulative_sum_threshold(attr_combined, 100 - outlier_perc)
