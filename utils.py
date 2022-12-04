@@ -107,11 +107,11 @@ def save_checkpoint(args, state, is_best, local_idx, is_global):
     if is_global == 0:
         if not os.path.isdir(f'save_checkpoints/{args.model}_local/'):
             os.makedirs(f'save_checkpoints/{args.model}_local/')
-        filename = f'save_checkpoints/{args.model}_local/local_{local_idx}.gpu{args.gpu}.ckpt.pth.tar'
+        filename = f'save_checkpoints/{args.model}_local/local_{local_idx}.gpu{args.gpu}.mode{args.mode}.global_epoch{args.epochs}.local_ep{args.local_ep}.num_users{args.num_users}.ckpt.pth.tar'
     else:
         if not os.path.isdir(f'save_checkpoints/{args.model}_global/'):
             os.makedirs(f'save_checkpoints/{args.model}_global/')
-        filename = f'save_checkpoints/{args.model}_global/global.iid{args.iid}.gpu{args.gpu}.ckpt.pth.tar'
+        filename = f'save_checkpoints/{args.model}_global/global.iid{args.iid}.gpu{args.gpu}.mode{args.mode}.global_epoch{args.epochs}.local_ep{args.local_ep}.num_users{args.num_users}.ckpt.pth.tar'
     torch.save(state, filename)
     print(f'saved checkpoint to {filename}')
     if is_best:
