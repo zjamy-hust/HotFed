@@ -182,6 +182,7 @@ class LocalUpdate(object):
                 optimizer.step()
                 
                 #获取训练样本对应的masks
+
                 masks_with_idx = train_masks[batch_idx*loader.batch_size+0:batch_idx*loader.batch_size+labels.shape[0]]
                 masks = torch.stack([item[1] for item in masks_with_idx],dim=0)
                 images_ = masks * images
@@ -191,7 +192,7 @@ class LocalUpdate(object):
                 loss = self.criterion(log_probs, labels)
                 # optimizer.zero_grad()
                 loss.backward()
-               
+            
                 self.logger.add_scalar('loss', loss.item())
                 batch_loss.append(loss.item())
                 optimizer.step()
