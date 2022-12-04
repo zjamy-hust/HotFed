@@ -1,11 +1,18 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 # Python version: 3.6
-
+import math
 import torch
 import copy
 from torch import nn
 from torch.utils.data import DataLoader, Dataset
+
+from captum.attr import IntegratedGradients
+from captum.attr import Saliency
+from captum.attr import DeepLift
+from captum.attr import NoiseTunnel
+from captum.attr import visualization as viz
+
 best_global_acc = 0
 
 class DatasetSplit(Dataset):
@@ -54,7 +61,7 @@ class LocalUpdate(object):
                                 batch_size=128, shuffle=False)
 
         return trainloader, valloader
-
+    
     def update_weights(self, model, global_round, user):
         # Set mode to train model
         epoch_loss = []
@@ -87,6 +94,7 @@ class LocalUpdate(object):
                 self.logger.add_scalar('loss', loss.item())
                 batch_loss.append(loss.item())
                 optimizer.step()
+                
             if self.args.verbose :
                     print('| Global Round : {} | Local Epoch : {} | User ID: {} | Data size: {} \tLoss: {:.4f}'.format(
                         global_round, iter, user, len(loader.dataset), loss.item()))
@@ -140,6 +148,108 @@ class LocalUpdate(object):
             print(f'Global:{global_round}, user:{user}, train accuracy:{100*accuracy:.2f}%, loss:{loss:.4f}, correct:{correct:.0f}, total:{total:.0f}, best local acc: {100*self.best_local_acc:.2f}%')
         return accuracy, loss, is_best
 
+    def update_weights_augmentation(self, model, global_round, user, train_masks):
+        # Set mode to train model
+        epoch_loss = []
+
+        # Set optimizer for the local updates
+        if self.args.optimizer == 'sgd':
+            optimizer = torch.optim.SGD(model.parameters(), lr=self.args.lr,
+                                        momentum=0.9, weight_decay=5e-4)
+        elif self.args.optimizer == 'adam':
+            optimizer = torch.optim.Adam(model.parameters(), lr=self.args.lr,
+                                         weight_decay=1e-4)
+        scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=self.args.local_ep)
+
+        loader = self.trainloader
+            
+        for iter in range(self.args.local_ep):
+            is_best = 0
+            batch_loss = []
+            model.train()
+            
+            for batch_idx, (images, labels) in enumerate(loader):
+                images, labels = images.to(self.device), labels.to(self.device)
+                # print(len(images), len(labels))
+                model.zero_grad()
+                log_probs = model(images)
+                loss = self.criterion(log_probs, labels)
+                # optimizer.zero_grad()
+                loss.backward(retain_graph=True)
+               
+                self.logger.add_scalar('loss', loss.item())
+                batch_loss.append(loss.item())
+                optimizer.step()
+                
+                #获取训练样本对应的masks
+                masks_with_idx = train_masks[batch_idx*loader.batch_size+0:batch_idx*loader.batch_size+labels.shape[0]]
+                masks = torch.stack([item[1] for item in masks_with_idx],dim=0)
+                images_ = masks * images
+                # print(len(images), len(labels))
+                model.zero_grad()
+                log_probs = model(images_)
+                loss = self.criterion(log_probs, labels)
+                # optimizer.zero_grad()
+                loss.backward()
+               
+                self.logger.add_scalar('loss', loss.item())
+                batch_loss.append(loss.item())
+                optimizer.step()
+                
+            if self.args.verbose :
+                    print('| Global Round : {} | Local Epoch : {} | User ID: {} | Data size: {} \tLoss: {:.4f}'.format(
+                        global_round, iter, user, len(loader.dataset), loss.item()))
+            epoch_loss.append(sum(batch_loss)/len(batch_loss))
+            _, _, is_best = self.inference(model, global_round, user)
+            if is_best > 0:
+                best_model = copy.deepcopy(model)
+                best_epoch_loss = epoch_loss
+                best_loss = loss
+            scheduler.step()
+
+        return best_model.state_dict(), sum(best_epoch_loss) / len(best_epoch_loss), best_model
+
+def generate_dataset_mask(local_init_model, dataset, idxs, batch_size, shuffle, nt_samples, device, topk=0.5):   
+    """
+    利用服务器发来的模型产生mask
+    
+    Args:
+        local_init_model (_type_): 服务器发来的模型
+        dataset (_type_): 需要生成mask的数据集
+        idxs (_type_): idx集合
+        batch_size (_type_): batch_size
+        nt_samples (_type_): smoothGrad方法的采样次数
+        topk (float, optional): 选取前topk百分比的显著图分数. Defaults to 0.5.
+    """
+    ig = IntegratedGradients(local_init_model)
+    nt = NoiseTunnel(ig)
+
+    #构建dataloader
+    if idxs is None:
+        dataloader_for_masks = DataLoader(dataset, batch_size=batch_size, shuffle=shuffle)
+    else:
+        dataloader_for_masks = DataLoader(DatasetSplit(dataset, idxs), batch_size=batch_size, shuffle=shuffle)
+    
+    masks=[]
+    for batch_idx, (images, labels) in enumerate(dataloader_for_masks):
+        images, labels = images.to(device), labels.to(device)
+        local_init_model.zero_grad()
+        tensor_attributions = nt.attribute(images,
+                                            target=labels,
+                                            baselines=images * 0, nt_type='smoothgrad_sq',  nt_samples=nt_samples, stdevs=0.2    #nt_samples的取值，还需要调参试一下
+                                            ).permute(0,2,3,1)        #产生的归因值是梯度，而非deeplift那种近似分数
+        tensor_attributions = (tensor_attributions-torch.min(tensor_attributions))/(torch.max(tensor_attributions)-torch.min(tensor_attributions))       #归一化操作，方便根据阈值取mask
+        tensor_attributions = torch.sum(tensor_attributions,dim=-1)
+        tensor_attributions_flatten, _ = tensor_attributions.flatten().sort()
+        threshold_idx = math.ceil(topk * tensor_attributions_flatten.shape[0])
+        tensor_attributions_threshold = tensor_attributions_flatten[tensor_attributions_flatten.shape[0] - threshold_idx]
+        attributions_masks = (tensor_attributions>tensor_attributions_threshold).float()
+        #expension+filter (cv2?)?????????
+        
+        torch.cuda.empty_cache()#2100->1700M
+        masks.append([batch_idx,attributions_masks])
+        
+    return masks
 
 def test_inference(args, model, test_dataset):
     """ Returns the test accuracy and loss.
@@ -162,6 +272,56 @@ def test_inference(args, model, test_dataset):
     
             # Inference
             outputs = model(images)
+            batch_loss = criterion(outputs, labels)
+            loss += batch_loss.item()
+    
+            # Prediction
+            _, pred_labels = torch.max(outputs, 1)
+            pred_labels = pred_labels.view(-1)
+            correct += torch.sum(torch.eq(pred_labels, labels)).item()
+            total += len(labels)
+    
+    accuracy = correct/total
+    if accuracy > best_global_acc:
+            # print('Saving..')
+            # state = {
+            #     'net': net.state_dict(),
+            #     'acc': acc,
+            #     'epoch': epoch,
+            # }
+            # if not os.path.isdir('checkpoints'):
+            #     os.mkdir('checkpoints')
+            # torch.save(state, './checkpoints/ckpt_best_global.pth')
+            best_global_acc = accuracy
+    print(f'test-full accuracy:{100*accuracy:.2f}%, loss:{loss:.4f}, correct:{correct:.0f}, total:{total:.0f}, best_global_acc:{100*best_global_acc:.2f}%')
+    return accuracy, loss
+
+def test_inference_with_mask(args, model, test_dataset, test_masks):
+    """ Returns the test accuracy and loss.
+    """
+    global best_global_acc
+
+    model.eval()
+    loss, total, correct = 0.0, 0.0, 0.0
+
+    device = (f'cuda:{str(args.gpu)}')  if torch.cuda.is_available() else 'cpu'
+    # print("device",device)
+    criterion = nn.CrossEntropyLoss().to(device)
+    testloader = DataLoader(test_dataset, batch_size=128,
+                            shuffle=False)
+
+    with torch.no_grad():
+        for batch_idx, (images, labels) in enumerate(testloader):
+            images, labels = images.to(device), labels.to(device)
+            model.zero_grad()
+            
+            #获取训练样本对应的masks
+            masks_with_idx = test_masks[batch_idx*testloader.batch_size+0:batch_idx*testloader.batch_size+labels.shape[0]]
+            masks = torch.stack([item[1] for item in masks_with_idx],dim=0)
+            images_ = masks * images
+    
+            # Inference
+            outputs = model(images_)
             batch_loss = criterion(outputs, labels)
             loss += batch_loss.item()
     

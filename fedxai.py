@@ -2,11 +2,20 @@
 # -*- coding: utf-8 -*-
 # Python version: 3.6
 
+"""
+版本：12月3日-1
+修改内容：
+1、增加不同模式。例如data augmentation、带mask进行inference等
+2、增加设置随机数代码
+3、更改xai.py中，产生mask的代码（127行）。
+4、将XAI_acc和acc一并作为selection过程的依据（296行）
+"""
 
 import os
 import copy
 import time
 import pickle
+import random
 import numpy as np
 from tqdm import tqdm
 import matplotlib
@@ -17,7 +26,7 @@ from tensorboardX import SummaryWriter
 
 from options import args_parser
 from utils import get_dataset, average_weights, exp_details, save_checkpoint
-from localupdates.update import LocalUpdate, test_inference
+from localupdates.update import LocalUpdate, test_inference, test_inference_with_mask, generate_dataset_mask
 from models.models import TestmyNet
 from models.models_resnet import ResNet18
 from models.models_shufflenetv2 import ShuffleNetV2
@@ -29,9 +38,21 @@ best_local_acc = 0
 best_global_acc = 0
 pretrained_model='./checkpoints/pre_ckpt.best.pth.tar'
 
-
 import logging
 from logging import handlers
+ 
+print("dance:", os.getpid())
+
+def set_random_seed(seed):
+    torch.manual_seed(seed)
+    torch.cuda.manual_seed(seed)
+    torch.cuda.manual_seed_all(seed)  # if you are using multi-GPU.
+    np.random.seed(seed)  # Numpy module.
+    random.seed(seed)  # Python random module.
+    torch.manual_seed(seed)
+    if torch.cuda.is_available():
+        torch.backends.cudnn.benchmark = False
+        torch.backends.cudnn.deterministic = True
  
 class Logger(object):
     level_relations = {
@@ -62,8 +83,8 @@ class Logger(object):
         # self.logger.addHandler(sh) #把对象加到logger里
         self.logger.addHandler(th)
 
-        
-asset_path='/workspace/externalhome/XAI/HotFed/assets'
+
+asset_path='assets'
 classes = ('plane', 'car', 'bird', 'cat',
        'deer', 'dog', 'frog', 'horse', 'ship', 'truck')
 # classes = ('plane' 0, 'car' 1, 'bird' 2, 'cat' 3,
@@ -75,6 +96,7 @@ files = os.listdir(assetpath)
 
 if __name__ == '__main__':
     log = Logger('mylog/'+time.strftime("%Y-%m-%d-%H_%M_%S", time.localtime())+'.log',level='debug')
+
     best_local_acc = 0
     best_global_acc = 0
     start_time = time.time()
@@ -84,6 +106,9 @@ if __name__ == '__main__':
     logger = SummaryWriter('./logs')
 
     args = args_parser()
+    
+    set_random_seed(args.random_seed)       #设置随机数
+    
     exp_details(log,args)
     if args.gpu:
         torch.cuda.set_device(int(args.gpu))
@@ -169,10 +194,11 @@ if __name__ == '__main__':
 
     test_loss_list = []
     test_acc_list = []
-    local_XAI_ACC_list = []
 
     
     for epoch in range(start_epoch, start_epoch+args.epochs):
+        epoch_start_time = time.time()
+        #D
         is_best = 0
         local_weights, local_losses= [], []
         #update learning rate
@@ -186,22 +212,61 @@ if __name__ == '__main__':
         # Set optimizer for the local updates
         local_test_acc_list = []
         local_test_loss_list = []
+        local_XAI_acc_list = []
         for idx in range(start_user,args.num_users):
             local_model = LocalUpdate(args=args, dataset=train_dataset,
                                       idxs=user_groups[idx], logger=logger)
             # model=copy.deepcopy(global_model)
-            w, loss, lw  = local_model.update_weights(
-                model=copy.deepcopy(global_model), global_round=epoch, user=idx)
-
+            
+            local_init_model=copy.deepcopy(global_model)
+            
+            if args.mode in [0,2]:  
+                w, loss, lw  = local_model.update_weights(
+                    model=local_init_model, global_round=epoch, user=idx)
+            elif args.mode == 1:    #进行augumentation计算          #是否应当跳过第一轮？？？？？？？？？？？
+                #先通过server model为每个local dataset样本产生对应的mask
+                train_masks = generate_dataset_mask(local_init_model,
+                                                    dataset=train_dataset,
+                                                    idxs=user_groups[idx],
+                                                    batch_size=1,
+                                                    shuffle=True,           #这个会不会影响mask的顺序？
+                                                    nt_samples=1,
+                                                    device=device,
+                                                    topk = 0.5)          #速度比较慢、占用空间比较大？？？？？？？？？？？？
+                w, loss, lw  = local_model.update_weights_augmentation(
+                    model=local_init_model, global_round=epoch, user=idx, train_masks = train_masks) 
+            else:
+                raise ValueError("args.mode有误。")
+            
             #simulate this will happen in the enclave or cloud side
-            local_test_acc, local_test_loss =  test_inference(args, model=copy.deepcopy(lw), test_dataset=test_dataset)
-            local_test_acc_list.append((idx,str(local_test_acc)))
-            local_test_loss_list.append((idx,str(local_test_loss)))
+            if args.mode in [0,1]:  #只有mode==2才进行给test数据加上mask
+                local_test_acc, local_test_loss =  test_inference(args, model=copy.deepcopy(lw), test_dataset=test_dataset) 
+            elif args.mode == 2:
+                test_masks = generate_dataset_mask(local_init_model,
+                                                    dataset=test_dataset,
+                                                    idxs=None,
+                                                    batch_size=1,
+                                                    shuffle=False,
+                                                    nt_samples=1,
+                                                    device=device,
+                                                    topk = 0.5)     #其实这个东西可以是服务器随着测试集发送过来。，因此放到遍历客户端的for循环之外，只执行1次即可
+                local_test_acc, local_test_loss =  test_inference_with_mask(args, model=copy.deepcopy(lw), test_dataset=test_dataset, test_masks=test_masks)
+            
+            local_test_acc_list.append((idx,local_test_acc))
+            local_test_loss_list.append((idx,local_test_loss))
 
-            ##### add XAI calc here #####
-
-            in_mask_acc_mean,out_mask_acc_mean,local_XAI_ACC = XAI_evaluate(copy.deepcopy(lw),files,assetpath,showimg=0,p=0,device=device,XAI_labels=XAI_labels,classes=classes)
-            local_XAI_ACC_list.append((idx,str(local_XAI_ACC)))
+            ##### add XAI calc here #####           #用一个小的样本集计算出XAI指标之后，如何混合Acc和XAI_Acc？？？？？？？？？？？
+            if args.mode in [0,1]:  #mode == 2不需要进行该评估
+            # xai_device= (f'cuda:{str(args.gpu-1)}')  if torch.cuda.is_available() else 'cpu'
+                in_mask_acc_mean,out_mask_acc_mean,XAI_ACC=XAI_evaluate(copy.deepcopy(lw),
+                                                                        files,
+                                                                        assetpath,
+                                                                        showimg=0,
+                                                                        p=0,
+                                                                        device=device,
+                                                                        XAI_labels=XAI_labels,
+                                                                        classes=classes)
+                local_XAI_acc_list.append((idx,XAI_ACC))
             #######end XAI calc#####
 
             local_weights.append(copy.deepcopy(w))
@@ -212,33 +277,35 @@ if __name__ == '__main__':
                         'arch': args.model,
                         'state_dict': w,
                     }, is_best, idx, is_global=0)
-            print(f'Global:{epoch}, user:{idx}, size:{len(user_groups[idx])} loss: {loss:.4f} XAI_ACC:{local_XAI_ACC:.4f}')
-            log.logger.debug(f'Global:{epoch}, user:{idx}, size:{len(user_groups[idx])} loss: {loss:.4f} XAI_ACC:{local_XAI_ACC:.4f}')
+            print(f'Global:{epoch}, user:{idx}, size:{len(user_groups[idx])} loss: {loss:.4f}')
+            log.logger.debug(f'Global:{epoch}, user:{idx}, size:{len(user_groups[idx])} loss: {loss:.4f}')
             optimizer.step() #not sure whether making it inside idx or outside idx
 
-        #####client selection to be added here######
+        #####client selection to be added here######            #选择代码实现方式
         
         #select top 12 acc & loss
         #select top 12 XAI data
         #selected = 1           
         # Initializing N 
         N = 15
-        
-        # printing original list
-        print("The original list is : " + str(local_test_acc_list))
-        print("The original XAI_ACC list is : " + str(local_XAI_ACC_list))
         # Get Top N elements from Records
         # Using sorted() + itemgetter()
-        res = sorted(local_test_acc_list, key=itemgetter(1), reverse = True)[:N]
-        print("The sorted list is : " + str(res))
-        selected_list = []
+        
+        #先计算混合结果，再排序
+        #混合acc和XAI进行衡量，此处实现的是平均值？？？？？？？？？？？？？？
+        mean_acc_and_XAI_acc = [(local_test_acc_list[i][0],(local_test_acc_list[i][1]+local_XAI_acc_list[i][1])/2) for i in range(len(local_test_acc_list))]    #计算结果：(idx, (acc+XAI_acc)/2)
+        
+        res = sorted(mean_acc_and_XAI_acc, key=itemgetter(1), reverse = True)[:N]
+        print("The sorted acc_list is : " + str(res))
+        
+        selected_client_idx_list = []
         for item in res:
-            selected_list.append(item[0])
-        print("The selected client list is : " + str(selected_list))
+            selected_client_idx_list.append(item[0])
+        print("The selected client list is : " + str(selected_client_idx_list))
         #####client selection end####################
 
         # update global weights
-        global_weights = average_weights(local_weights,selected_list)
+        global_weights = average_weights(local_weights,selected_client_idx_list)
 
         # update global weights
         global_model.load_state_dict(global_weights)
@@ -283,6 +350,8 @@ if __name__ == '__main__':
             print('Best Test Accuracy: {:.2f}% \n'.format(100*best_test_acc))
             log.logger.debug('Best Test Accuracy: {:.2f}% \n'.format(100*best_test_acc))
         scheduler.step()
+        
+        print("epoch Run Time: ",time.time()-epoch_start_time)
 
     # Test inference after completion of training
     test_acc, test_loss =  test_inference(args, global_model, test_dataset)
