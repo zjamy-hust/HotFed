@@ -224,17 +224,23 @@ if __name__ == '__main__':
                 w, loss, lw  = local_model.update_weights(
                     model=local_init_model, global_round=epoch, user=idx)
             elif args.mode == 1:    #进行augumentation计算          #是否应当跳过第一轮？？？？？？？？？？？
-                #先通过server model为每个local dataset样本产生对应的mask
-                train_masks = generate_dataset_mask(local_init_model,
-                                                    dataset=train_dataset,
-                                                    idxs=user_groups[idx],
-                                                    batch_size=1,
-                                                    shuffle=True,           #这个会不会影响mask的顺序？
-                                                    nt_samples=1,
-                                                    device=device,
-                                                    topk = 0.5)          #速度比较慢、占用空间比较大？？？？？？？？？？？？
-                w, loss, lw  = local_model.update_weights_augmentation(
-                    model=local_init_model, global_round=epoch, user=idx, train_masks = train_masks) 
+                if epoch < 1:
+                    w, loss, lw  = local_model.update_weights(
+                        model=local_init_model, global_round=epoch, user=idx)
+                
+                else:
+                    #先通过server model为每个local dataset样本产生对应的mask
+                    print("Use Data Augmentation.")
+                    train_masks = generate_dataset_mask(local_init_model,
+                                                        dataset=train_dataset,
+                                                        idxs=user_groups[idx],
+                                                        batch_size=1,
+                                                        shuffle=True,           #这个会不会影响mask的顺序？
+                                                        nt_samples=1,
+                                                        device=device,
+                                                        topk = 0.5)          #速度比较慢、占用空间比较大？？？？？？？？？？？？
+                    w, loss, lw  = local_model.update_weights_augmentation(
+                        model=local_init_model, global_round=epoch, user=idx, train_masks = train_masks) 
             else:
                 raise ValueError("args.mode有误。")
             
