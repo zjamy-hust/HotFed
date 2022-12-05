@@ -44,6 +44,18 @@ def args_parser():
                                     2表示仅测试时采用mask，然后通过acc筛选客户端，测试前会通过server model和testing dataset产生mask；\
                                     ')
     
+    #mode == 1需要关注的参数
+    parser.add_argument('--start_epoch', type=int, default=1,help="data augmentation需要跳过前面几轮再执行。")
+    parser.add_argument('--train_mask_batch_size', type=int, default=20,help="生成训练集mask，一次计算的mask数量。")
+    parser.add_argument('--train_mask_nt_samples', type=int, default=10,help="IG算法，一个样本采样的次数。")
+    parser.add_argument('--train_mask_n_steps', type=int, default=15,help="IG算法，一个样本step数量。")
+    
+    #mode == 2需要关注的参数
+    parser.add_argument('--test_mask_batch_size', type=int, default=20,help="生成测试集mask，一次计算的mask数量。")
+    parser.add_argument('--test_mask_nt_samples', type=int, default=10,help="IG算法，一个样本采样的次数。")
+    parser.add_argument('--test_mask_n_steps', type=int, default=15,help="IG算法，一个样本step数量。")
+     
+     
     parser.add_argument('--verbose', type=int, default=1, help='verbose')
     parser.add_argument('--save_local', type=int, default=0, help='save local models or not')
     parser.add_argument('--save_global', type=int, default=1, help='save global models or not')
@@ -54,6 +66,7 @@ def args_parser():
     parser.add_argument('--resume', type=str, default='')
     parser.add_argument('--pretrained_model', type=str, default='')
     parser.add_argument('--random_seed', type=int, default=40212202)
+
 
     args = parser.parse_args()
     return args

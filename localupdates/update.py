@@ -27,9 +27,9 @@ class DatasetSplit(Dataset):
         return len(self.idxs)
 
     def __getitem__(self, item):
-        image, label = self.dataset[self.idxs[item]]
+        image, label = self.dataset[item]
 #        return torch.tensor(image), torch.tensor(label)
-        return image.clone().detach(), torch.tensor(label)
+        return image.clone().detach(), torch.tensor(label), self.idxs[item]
 
 
 class LocalUpdate(object):
@@ -50,7 +50,7 @@ class LocalUpdate(object):
         """
         # split indexes for train, validation (90, 10)
         idxs_train = idxs[:int(0.9*len(idxs))]
-        # idxs_train = idxs[:int(len(idxs))]
+        # idxs_train = idxs[:int(len(idxs))]            #这里应该和FedAvg对齐？？？？？？？？？？？？？
         idxs_val = idxs[int(0.9*len(idxs)):] # is it iid? needs improve
 
 
@@ -82,7 +82,7 @@ class LocalUpdate(object):
             batch_loss = []
             model.train()
             
-            for batch_idx, (images, labels) in enumerate(loader):
+            for batch_idx, (images, labels, idxs) in enumerate(loader):
                 images, labels = images.to(self.device), labels.to(self.device)
                 # print(len(images), len(labels))
                 model.zero_grad()
@@ -117,7 +117,7 @@ class LocalUpdate(object):
         loss, total, correct, is_best = 0.0, 0.0, 0.0, 1
 
         with torch.no_grad():
-            for batch_idx, (images, labels) in enumerate(self.valloader):
+            for batch_idx, (images, labels, idxs) in enumerate(self.valloader):
                 images, labels = images.to(self.device), labels.to(self.device)
                 model.zero_grad()
     
@@ -168,7 +168,7 @@ class LocalUpdate(object):
             batch_loss = []
             model.train()
             
-            for batch_idx, (images, labels) in enumerate(loader):
+            for batch_idx, (images, labels, idxs) in enumerate(loader):
                 images, labels = images.to(self.device), labels.to(self.device)
                 # print(len(images), len(labels))
                 model.zero_grad()
@@ -182,9 +182,8 @@ class LocalUpdate(object):
                 optimizer.step()
                 
                 #获取训练样本对应的masks
-
-                masks_with_idx = train_masks[batch_idx*loader.batch_size+0:batch_idx*loader.batch_size+labels.shape[0]]
-                masks = torch.stack([item[1] for item in masks_with_idx],dim=0)
+                masks_with_idx = [train_masks[int(index)] for index in idxs]  #根据idxs索引对应的mask
+                masks = torch.stack([item[0] for item in masks_with_idx],dim=0).unsqueeze(1)
                 images_ = masks * images
                 # print(len(images), len(labels))
                 model.zero_grad()
@@ -192,7 +191,7 @@ class LocalUpdate(object):
                 loss = self.criterion(log_probs, labels)
                 # optimizer.zero_grad()
                 loss.backward()
-            
+               
                 self.logger.add_scalar('loss', loss.item())
                 batch_loss.append(loss.item())
                 optimizer.step()
@@ -210,7 +209,7 @@ class LocalUpdate(object):
 
         return best_model.state_dict(), sum(best_epoch_loss) / len(best_epoch_loss), best_model
 
-def generate_dataset_mask(local_init_model, dataset, idxs, batch_size, shuffle, nt_samples, device, topk=0.5):   
+def generate_dataset_mask(local_init_model, dataset, idxs, batch_size, nt_samples, n_steps, device, topk=0.5):   
     """
     利用服务器发来的模型产生mask
     
@@ -226,29 +225,33 @@ def generate_dataset_mask(local_init_model, dataset, idxs, batch_size, shuffle, 
     nt = NoiseTunnel(ig)
 
     #构建dataloader
-    if idxs is None:
-        dataloader_for_masks = DataLoader(dataset, batch_size=batch_size, shuffle=shuffle)
-    else:
-        dataloader_for_masks = DataLoader(DatasetSplit(dataset, idxs), batch_size=batch_size, shuffle=shuffle)
+    dataloader_for_masks = DataLoader(DatasetSplit(dataset, idxs), batch_size=batch_size, shuffle=False)    #无论是train、还是test，都不进行shuffle
     
-    masks=[]
-    for batch_idx, (images, labels) in enumerate(dataloader_for_masks):
+    masks={}
+    for batch_idx, (images, labels, idxs) in enumerate(dataloader_for_masks):
         images, labels = images.to(device), labels.to(device)
         local_init_model.zero_grad()
         tensor_attributions = nt.attribute(images,
                                             target=labels,
-                                            baselines=images * 0, nt_type='smoothgrad_sq',  nt_samples=nt_samples, stdevs=0.2    #nt_samples的取值，还需要调参试一下
+                                            baselines=images * 0, 
+                                            nt_type='smoothgrad_sq',  
+                                            nt_samples=nt_samples, 
+                                            n_steps=n_steps,
+                                            stdevs=0.2    #nt_samples的取值，还需要调参试一下
                                             ).permute(0,2,3,1)        #产生的归因值是梯度，而非deeplift那种近似分数
-        tensor_attributions = (tensor_attributions-torch.min(tensor_attributions))/(torch.max(tensor_attributions)-torch.min(tensor_attributions))       #归一化操作，方便根据阈值取mask
-        tensor_attributions = torch.sum(tensor_attributions,dim=-1)
-        tensor_attributions_flatten, _ = tensor_attributions.flatten().sort()
-        threshold_idx = math.ceil(topk * tensor_attributions_flatten.shape[0])
-        tensor_attributions_threshold = tensor_attributions_flatten[tensor_attributions_flatten.shape[0] - threshold_idx]
-        attributions_masks = (tensor_attributions>tensor_attributions_threshold).float()
-        #expension+filter (cv2?)?????????
-        
+        # tensor_attributions_unbind=torch.unbind(tensor_attributions,dim=0)
+        for i in range(tensor_attributions.shape[0]):
+            tensor_attributions_idx = tensor_attributions[i]
+            tensor_attributions_idx = torch.sum(tensor_attributions_idx,dim=-1)/3
+            tensor_attributions_idx_flatten, _ = tensor_attributions_idx.flatten().sort()
+            threshold_idx = math.ceil(topk * tensor_attributions_idx_flatten.shape[0])
+            tensor_attributions_threshold = tensor_attributions_idx_flatten[tensor_attributions_idx_flatten.shape[0] - threshold_idx]
+            attributions_masks = (tensor_attributions_idx >= tensor_attributions_threshold).float()
+            #expension+filter (cv2?)?????????
+            
+            masks[int(idxs[i])]=[attributions_masks,images[i]]    #保存三个变量，idxs用于根据dataset索引mask，attributions_masks表示mask，images表示原始图片，用于比对索引是否正确。
+            
         torch.cuda.empty_cache()#2100->1700M
-        masks.append([batch_idx,attributions_masks])
         
     return masks
 
@@ -263,11 +266,11 @@ def test_inference(args, model, test_dataset):
     device = (f'cuda:{str(args.gpu)}')  if torch.cuda.is_available() else 'cpu'
     # print("device",device)
     criterion = nn.CrossEntropyLoss().to(device)
-    testloader = DataLoader(test_dataset, batch_size=128,
+    testloader = DataLoader(DatasetSplit(test_dataset,[range(len(test_dataset))]), batch_size=128,
                             shuffle=False)
 
     with torch.no_grad():
-        for batch_idx, (images, labels) in enumerate(testloader):
+        for batch_idx, (images, labels, idxs) in enumerate(testloader):
             images, labels = images.to(device), labels.to(device)
             model.zero_grad()
     
@@ -308,17 +311,17 @@ def test_inference_with_mask(args, model, test_dataset, test_masks):
     device = (f'cuda:{str(args.gpu)}')  if torch.cuda.is_available() else 'cpu'
     # print("device",device)
     criterion = nn.CrossEntropyLoss().to(device)
-    testloader = DataLoader(test_dataset, batch_size=128,
+    testloader = DataLoader(DatasetSplit(test_dataset,[range(len(test_dataset))]), batch_size=128,
                             shuffle=False)
 
     with torch.no_grad():
-        for batch_idx, (images, labels) in enumerate(testloader):
+        for batch_idx, (images, labels, idxs) in enumerate(testloader):
             images, labels = images.to(device), labels.to(device)
             model.zero_grad()
             
             #获取训练样本对应的masks
-            masks_with_idx = test_masks[batch_idx*testloader.batch_size+0:batch_idx*testloader.batch_size+labels.shape[0]]
-            masks = torch.stack([item[1] for item in masks_with_idx],dim=0)
+            masks_with_idx = [test_masks[int(index)] for index in idxs]  #根据idxs索引对应的mask
+            masks = torch.stack([item[0] for item in masks_with_idx],dim=0).unsqueeze(1)
             images_ = masks * images
     
             # Inference
