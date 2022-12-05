@@ -266,7 +266,7 @@ def test_inference(args, model, test_dataset):
     device = (f'cuda:{str(args.gpu)}')  if torch.cuda.is_available() else 'cpu'
     # print("device",device)
     criterion = nn.CrossEntropyLoss().to(device)
-    testloader = DataLoader(DatasetSplit(test_dataset,[range(len(test_dataset))]), batch_size=128,
+    testloader = DataLoader(DatasetSplit(test_dataset,[i for i in range(len(test_dataset))]), batch_size=128,
                             shuffle=False)
 
     with torch.no_grad():
@@ -311,7 +311,7 @@ def test_inference_with_mask(args, model, test_dataset, test_masks):
     device = (f'cuda:{str(args.gpu)}')  if torch.cuda.is_available() else 'cpu'
     # print("device",device)
     criterion = nn.CrossEntropyLoss().to(device)
-    testloader = DataLoader(DatasetSplit(test_dataset,[range(len(test_dataset))]), batch_size=128,
+    testloader = DataLoader(DatasetSplit(test_dataset,[i for i in range(len(test_dataset))]), batch_size=128,
                             shuffle=False)
 
     with torch.no_grad():
