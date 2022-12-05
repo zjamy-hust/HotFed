@@ -253,7 +253,7 @@ if __name__ == '__main__':
             elif args.mode == 2:
                 test_masks = generate_dataset_mask(local_init_model,
                                                     dataset=test_dataset,
-                                                    idxs=[range(len(test_dataset))],
+                                                    idxs=[i for i in range(len(test_dataset))],
                                                     batch_size=args.test_mask_batch_size,
                                                     nt_samples=args.test_mask_nt_samples,
                                                     n_steps=args.test_mask_n_steps,
@@ -302,9 +302,11 @@ if __name__ == '__main__':
         
         #先计算混合结果，再排序
         #混合acc和XAI进行衡量，此处实现的是平均值？？？？？？？？？？？？？？
-        mean_acc_and_XAI_acc = [(local_test_acc_list[i][0],(local_test_acc_list[i][1]+local_XAI_acc_list[i][1])/2) for i in range(len(local_test_acc_list))]    #计算结果：(idx, (acc+XAI_acc)/2)
-        
-        res = sorted(mean_acc_and_XAI_acc, key=itemgetter(1), reverse = True)[:N]
+        if args.mode in [0,1]:
+            mean_acc_and_XAI_acc = [(local_test_acc_list[i][0],(local_test_acc_list[i][1]+local_XAI_acc_list[i][1])/2) for i in range(len(local_test_acc_list))]    #计算结果：(idx, (acc+XAI_acc)/2)
+            res = sorted(mean_acc_and_XAI_acc, key=itemgetter(1), reverse = True)[:N]
+        elif args.mode == 2:
+            res = sorted(local_test_acc_list, key=itemgetter(1), reverse = True)[:N]
         print("The sorted acc_list is : " + str(res))
         
         selected_client_idx_list = []
