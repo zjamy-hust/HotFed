@@ -296,7 +296,7 @@ if __name__ == '__main__':
         #select top 12 XAI data
         #selected = 1           
         # Initializing N 
-        N = 15
+        N = args.client_selection_num
         # Get Top N elements from Records
         # Using sorted() + itemgetter()
         
@@ -337,6 +337,16 @@ if __name__ == '__main__':
 
         # print global training loss after every 'i' rounds
         test_acc, test_loss =  test_inference(args, global_model, test_dataset)
+        
+        in_mask_acc_mean,out_mask_acc_mean,XAI_ACC=XAI_evaluate(copy.deepcopy(global_model),
+                                                                        files,
+                                                                        assetpath,
+                                                                        showimg=0,
+                                                                        p=0,
+                                                                        device=device,
+                                                                        XAI_labels=XAI_labels,
+                                                                        classes=classes)
+        
         test_loss_list.append(test_loss)
         test_acc_list.append(test_acc)
         if test_acc > best_test_acc:
@@ -360,6 +370,8 @@ if __name__ == '__main__':
             log.logger.debug('Test Accuracy: {:.2f}% '.format(100*test_acc))
             print('Best Test Accuracy: {:.2f}% \n'.format(100*best_test_acc))
             log.logger.debug('Best Test Accuracy: {:.2f}% \n'.format(100*best_test_acc))
+            print('Global XAI_ACC: {:.2f}% \n'.format(100 * XAI_ACC))
+            log.logger.debug('Global XAI_ACC: {:.2f}% \n'.format(100*XAI_ACC))
         scheduler.step()
         
         print("epoch Run Time: ",time.time()-epoch_start_time)
