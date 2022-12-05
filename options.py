@@ -9,7 +9,7 @@ def args_parser():
     # federated arguments (Notation for the arguments followed from paper)
     parser.add_argument('--epochs', type=int, default=2,
                         help="number of rounds of training")
-    parser.add_argument('--num_users', type=int, default=2,
+    parser.add_argument('--num_users', type=int, default=1,
                         help="number of users: K")
 #    parser.add_argument('--frac', type=float, default=0.1,
 #                        help='the fraction of clients: C')
@@ -34,10 +34,12 @@ def args_parser():
                         to a specific GPU ID. Default set to use CPU.")
     parser.add_argument('--optimizer', type=str, default='sgd', help="type \
                         of optimizer")
-    parser.add_argument('--iid', type=int, default=1,
+    parser.add_argument('--iid', type=int, default=0,
                         help='Default set to IID. Set to 0 for non-IID.')
     parser.add_argument('--stopping_rounds', type=int, default=10,
                         help='rounds of early stopping')
+    parser.add_argument('--client_selection_num', type=int, default=15,
+                        help='选中client的数量。')
     parser.add_argument('--mode', type=int, default=1,
                         help='[0,1,2]。0表示FedAvg； \
                                     1表示data augmentation训练，训练前，利用server model和trainning dataset生成mask，训练时进行一次原始样本训练+一次带mask训练，测试时计算acc+XAI Acc（暂时如此）；\
@@ -46,14 +48,14 @@ def args_parser():
     
     #mode == 1需要关注的参数
     parser.add_argument('--start_epoch', type=int, default=1,help="data augmentation需要跳过前面几轮再执行。")
-    parser.add_argument('--train_mask_batch_size', type=int, default=20,help="生成训练集mask，一次计算的mask数量。")
-    parser.add_argument('--train_mask_nt_samples', type=int, default=10,help="IG算法，一个样本采样的次数。")
-    parser.add_argument('--train_mask_n_steps', type=int, default=15,help="IG算法，一个样本step数量。")
+    parser.add_argument('--train_mask_batch_size', type=int, default=2000,help="生成训练集mask，一次计算的mask数量。")
+    parser.add_argument('--train_mask_nt_samples', type=int, default=1,help="IG算法，一个样本采样的次数。")
+    parser.add_argument('--train_mask_n_steps', type=int, default=1,help="IG算法，一个样本step数量。")
     
     #mode == 2需要关注的参数
-    parser.add_argument('--test_mask_batch_size', type=int, default=20,help="生成测试集mask，一次计算的mask数量。")
-    parser.add_argument('--test_mask_nt_samples', type=int, default=10,help="IG算法，一个样本采样的次数。")
-    parser.add_argument('--test_mask_n_steps', type=int, default=15,help="IG算法，一个样本step数量。")
+    parser.add_argument('--test_mask_batch_size', type=int, default=2000,help="生成测试集mask，一次计算的mask数量。")
+    parser.add_argument('--test_mask_nt_samples', type=int, default=1,help="IG算法，一个样本采样的次数。")
+    parser.add_argument('--test_mask_n_steps', type=int, default=1,help="IG算法，一个样本step数量。")
      
      
     parser.add_argument('--verbose', type=int, default=1, help='verbose')
@@ -61,7 +63,7 @@ def args_parser():
     parser.add_argument('--save_global', type=int, default=1, help='save global models or not')
     # parser.add_argument('--comparing_shared', type=int, default=0, help='comparing shared or not')
     parser.add_argument('--shared_data', type=float, default=0, help='using shared data or not')
-    parser.add_argument('--partition', type=str, default='homo', help='homo, ')
+    parser.add_argument('--partition', type=str, default='hetero-dir', help='homo, hetero-dir ')
   
     parser.add_argument('--resume', type=str, default='')
     parser.add_argument('--pretrained_model', type=str, default='')

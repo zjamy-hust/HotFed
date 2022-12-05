@@ -78,6 +78,7 @@ def imshow(img, transpose = True):
 
 
 def XAI_evaluate(net_x,files, path, showimg,p,device, XAI_labels,classes):
+    torch.cuda.empty_cache()
     XAI_inmask_list = []
     XAI_outmask_list = []
     i=0;
