@@ -240,9 +240,9 @@ class LocalUpdate(object):
                 # optimizer.zero_grad()
                 loss.backward()
                
-                self.logger.add_scalar('loss', loss.item())
-                batch_loss.append(loss.item())
-                optimizer.step()
+                # self.logger.add_scalar('loss', loss.item())
+                # batch_loss.append(loss.item())
+                # optimizer.step()
                 
             if self.args.verbose :
                     print('| Global Round : {} | Local Epoch : {} | User ID: {} | Data size: {} \tLoss: {:.4f}'.format(

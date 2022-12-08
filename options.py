@@ -68,7 +68,6 @@ def args_parser():
     parser.add_argument('--test_mask_n_steps', type=int, default=1,help="IG算法，一个样本step数量。")
      
     parser.add_argument('--verbose', type=int, default=1, help='verbose')
-    
     parser.add_argument('--random_seed', type=int, default=40212202)
     parser.add_argument('--gpu', default=0, type=int, help="To use cuda, set \
                         to a specific GPU ID. Default set to use CPU.")
