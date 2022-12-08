@@ -30,11 +30,12 @@ from matplotlib.colors import LinearSegmentedColormap
 import cv2
 import torch.nn as nn
 import torch.nn.functional as F
+from torch.utils.data import DataLoader
 import os
 import matplotlib.image as img
 import torch.optim as optim
 import torch.optim as optim
-from localupdates.update import test_inference
+from localupdates.update import test_inference, DatasetSplit, generate_dataset_mask
 from options import args_parser
 import copy
 args = args_parser()
@@ -72,9 +73,6 @@ def imshow(img, transpose = True):
     npimg = img.numpy()
     plt.imshow(np.transpose(npimg, (1, 2, 0)))
     plt.show()
-
-
-
 
 
 def XAI_evaluate(net_x,files, path, showimg,p,device, XAI_labels,classes):
@@ -121,7 +119,7 @@ def XAI_evaluate(net_x,files, path, showimg,p,device, XAI_labels,classes):
             input_asset=input_asset.to(device)
             torch.cuda.empty_cache()
             #the 2nd parameter can be input_asset or input_asset_norm, input_asset_norm will show better ACC in XAI
-            attr_ig_nt = attribute_image_features(net_x,nt, input_asset_norm,truth=XAI_labels[int(im_name[:-4])-1], label=predicted_asset[0], baselines=input_asset * 0, nt_type='smoothgrad_sq',  nt_samples=50, stdevs=0.2)
+            attr_ig_nt = attribute_image_features(net_x,nt, input_asset_norm,truth=XAI_labels[int(im_name[:-4])-1], label=predicted_asset[0], baselines=input_asset * 0, nt_type='smoothgrad_sq',  nt_samples=50, n_step=50, stdevs=0.2)
             attr_ig_nt = np.transpose(attr_ig_nt.squeeze(0).cpu().detach().numpy(), (1, 2, 0))
             
             #计算二值化masks
@@ -173,11 +171,208 @@ def XAI_evaluate(net_x,files, path, showimg,p,device, XAI_labels,classes):
                 attr_outmask.imshow(out_mask,cmap="Reds",vmin=0,vmax=1)
                 fig.show()
             # plt.close(fig)
+            
     in_mask_acc_mean = mean(XAI_inmask_list)
     out_mask_acc_mean = mean(XAI_outmask_list)
     print("in_mask_acc_mean",in_mask_acc_mean,"out_mask_acc_mean",out_mask_acc_mean,"XAI ACC", correct/i)
     return in_mask_acc_mean,out_mask_acc_mean,correct/i
 
+def XAI_evaluate_with_global_masks(local_model, 
+                                   test_files_list, 
+                                   path, 
+                                   device, 
+                                   XAI_labels, 
+                                   classes, 
+                                   nt_samples, 
+                                   n_steps, 
+                                   margin, 
+                                   topk=0.5, 
+                                   compare_sever_client_masks=0, 
+                                   global_model=None, 
+                                   batch_size=1,
+                                   output_path="./"):
+    """     重写XAI_evaluate，使其能够根据global model产生mask，从而实现global model和local model产生的mask进行对比
+    
+    与原始XAI_evaluate之间的差别：
+        1、采用DataSplit加载测试样本
+
+    Args:
+        local_model (_type_): client model
+        test_files_list (_type_): 人工挑选的测试样本列表，list。
+        path (_type_): 测试样本的目录
+        device (_type_): 
+        XAI_labels (_type_): 测试样本的label index。
+        classes (_type_): 测试样本的label名称。
+        nt_samples
+        n_steps
+        margin： in_mask应当比out_mask大margin，防止噪声导致acc波动。
+        topk
+        compare_sever_client_masks (_type_): 是否进行client和global之间的对比
+        global_model (_type_, optional): Server model. Defaults to None.
+        batch_size: 测试和生成mask时的batch_size，为了计算的准确度，batch_size尽可能小，并且nt_samples和n_steps尽可能大。
+
+    Returns:
+        _type_: _description_
+    """
+    
+    test_files_list_jpg = sorted(filter(lambda x: x.endswith(".jpg"), test_files_list))
+    if len(test_files_list_jpg) <= 0:
+        raise ValueError("test_files_list不包含jpg文件。")
+    if len(test_files_list_jpg) != len(XAI_labels):
+        raise ValueError("长度不匹配。")
+    
+    torch.cuda.empty_cache()
+    
+    
+    test_images = []
+    npimg_list = []
+    image_masks_by_human = []
+    for im_idx in range(len(test_files_list_jpg)):
+        im_name = test_files_list_jpg[im_idx]
+        print(str(Path(path)/im_name))
+        im_asset=read_image(str(Path(path)/im_name))
+        
+        original_image_asset = fn.resize(im_asset, size=[32,32])/255
+        
+        input_asset=torch.tensor(original_image_asset.unsqueeze(0).cpu().detach().numpy())
+        input_asset.requires_grad = True
+        
+        input_asset_norm=fn.normalize(input_asset, mean=[0.4914, 0.4822, 0.4465], std=[0.2023, 0.1994, 0.2010]) #归一化，用来参与计算
+        test_images.append((input_asset_norm,XAI_labels[im_idx]))
+        
+        npimg = original_image_asset.numpy()     # unnormalize，用来直接输出原图
+        npimg_list.append(npimg)
+        
+        mask_im_name = im_name[:-4]+'_mask.png'
+        print("mask_im_name",mask_im_name)
+        truth_mask_tensor = read_image(str(Path(path)/mask_im_name),mode=torchvision.io.image.ImageReadMode.RGB)
+        truth_mask = cv2.imread(str(Path(path)/mask_im_name),cv2.IMREAD_GRAYSCALE)
+        truth_mask_np=truth_mask_tensor.numpy()
+        
+        image_masks_by_human.append((im_name, truth_mask_np, truth_mask))
+        
+    test_images_dataloader = DataLoader(DatasetSplit(test_images, [i for i in range(len(test_files_list_jpg))]), batch_size=batch_size, shuffle=False)
+    
+    if compare_sever_client_masks == 1:
+        test_images_masks_by_local_model = generate_dataset_mask(local_model, 
+                                                            test_images, 
+                                                            [i for i in range(len(test_files_list_jpg))], 
+                                                            batch_size, 
+                                                            nt_samples, 
+                                                            n_steps, 
+                                                            device, 
+                                                            topk)
+        torch.cuda.empty_cache()
+        test_images_masks_by_global_model = generate_dataset_mask(global_model, 
+                                                                test_images, 
+                                                                [i for i in range(len(test_files_list_jpg))], 
+                                                                batch_size, 
+                                                                nt_samples, 
+                                                                n_steps, 
+                                                                device, 
+                                                                topk)
+        torch.cuda.empty_cache()
+    
+    XAI_inmask_list = []
+    XAI_outmask_list = []
+    i=0;
+    correct=0;
+    ig = IntegratedGradients(local_model)
+    nt = NoiseTunnel(ig)
+    for batch_idx, (images, labels, idxs) in enumerate(test_images_dataloader):
+        input_asset_norm=images.to(device)
+        examples_num = input_asset_norm.shape[0]
+        
+        output_asset = local_model(input_asset_norm)
+        _, predicted_asset = torch.max(output_asset, 1)
+        print("predicted_asset",classes[predicted_asset[0]],"Truth", classes[XAI_labels[int(im_name[:-4])-1]])
+
+        for i in range(examples_num):   #分别处理每一个样本
+            example_index_in_all = batch_idx * test_images_dataloader.batch_size + i
+            print("example index:", example_index_in_all)
+            pixelnum_all=np.count_nonzero(truth_mask_np[example_index_in_all],axis=0)
+            print("pixelnum_all", pixelnum_all)
+
+            #the 2nd parameter can be input_asset or input_asset_norm, input_asset_norm will show better ACC in XAI
+            attr_ig_nt = attribute_image_features(local_model,
+                                                nt, 
+                                                input_asset_norm,
+                                                truth=XAI_labels[int(image_masks_by_human[example_index_in_all][0][:-4])-1], 
+                                                label=predicted_asset[example_index_in_all][0], 
+                                                baselines=input_asset_norm * 0, 
+                                                nt_type='smoothgrad_sq',  
+                                                nt_samples=50, 
+                                                n_step=50, 
+                                                stdevs=0.2)
+            attr_ig_nt = np.transpose(attr_ig_nt.squeeze(0).cpu().detach().numpy(), (1, 2, 0))
+            
+            #计算二值化masks
+            topk=0.6
+            attr_combined = np.sum(attr_ig_nt, axis=2)/3
+            # attr_combined = np.abs(attr_combined)
+            attr_combined_flatten_sorted = np.sort(attr_combined.flatten())
+            attr_combined_flatten_sorted = (attr_combined_flatten_sorted-np.min(attr_combined_flatten_sorted))/(np.max(attr_combined_flatten_sorted)-np.min(attr_combined_flatten_sorted))      #进行归一化操作。
+            threshold_idx = math.ceil(topk * attr_combined_flatten_sorted.shape[0])
+            threshold = attr_combined_flatten_sorted[attr_combined_flatten_sorted.shape[0] - threshold_idx]
+            
+            attr_hard_masks = (attr_combined > threshold).astype(float)
+
+            truth_mask = image_masks_by_human[example_index_in_all][2]
+            masked = cv2.add(attr_hard_masks, np.zeros(np.shape(attr_hard_masks), dtype=float), mask=truth_mask) 
+            out_mask = cv2.add(attr_hard_masks, np.zeros(np.shape(attr_hard_masks), dtype=float), mask=255-truth_mask) 
+
+            inmask_pixelnum=np.count_nonzero(masked)
+            inmask_percent=inmask_pixelnum/pixelnum_all
+            print("in mask pixelnum", inmask_pixelnum,pixelnum_all,inmask_percent)
+            XAI_inmask_list.append(inmask_percent)
+            out_pixelnum=np.count_nonzero(out_mask)
+            outmask_percent=out_pixelnum/(3*32*32-pixelnum_all)
+            print("out mask pixelnum", out_pixelnum,3*32*32-pixelnum_all, outmask_percent)
+            XAI_outmask_list.append(outmask_percent)
+
+            if inmask_percent > outmask_percent + margin:
+                correct = correct+1
+            
+            torch.cuda.empty_cache()
+            fig, (orig, mask, attr, attr_mask, attr_outmask) = plt.subplots(1, 5)
+            orig.axis('off')
+            mask.axis('off')
+            attr.axis('off')
+            attr_mask.axis('off')
+            attr_outmask.axis('off')
+            orig.imshow(np.transpose(npimg_list[example_index_in_all], (1, 2, 0)))
+            default_cmap = LinearSegmentedColormap.from_list(
+                "RdWhGn", ["red", "white", "green"]
+            )
+            vmin, vmax = -1, 1
+            attr.imshow(attr_hard_masks,cmap=default_cmap,vmin=vmin,vmax=vmax)
+            mask.imshow(truth_mask,cmap="Blues",vmin=0,vmax=1)
+            attr.imshow(attr_hard_masks,cmap=default_cmap,vmin=vmin,vmax=vmax)
+            mask.imshow(truth_mask,cmap="Blues",vmin=0,vmax=1)
+            attr_mask.imshow(masked,cmap="Greens",vmin=0,vmax=1)
+            attr_outmask.imshow(out_mask,cmap="Reds",vmin=0,vmax=1)
+            fig.show()
+            fig.savefig(output_path+image_masks_by_human[example_index_in_all][0][:-4]+"_result.jpg")
+            
+            #显示globale和local的mask
+            if compare_sever_client_masks == 1:
+                fig, (orig, local_mask_, global_mask_) = plt.subplots(1, 3)
+                orig.axis('off')
+                mask.axis('off')
+                attr.axis('off')
+                attr_mask.axis('off')
+                attr_outmask.axis('off')
+                orig.imshow(np.transpose(npimg_list[example_index_in_all], (1, 2, 0)))
+                local_mask_.imshow(np.transpose(test_images_masks_by_local_model[example_index_in_all].cpu().data.numpy(), (1, 2, 0)))
+                global_mask_.imshow(np.transpose(test_images_masks_by_global_model[example_index_in_all].cpu().data.numpy(), (1, 2, 0)))
+                fig.savefig(output_path+image_masks_by_human[example_index_in_all][0][:-4]+"_compare_global_local.jpg")
+            
+
+            
+    in_mask_acc_mean = mean(XAI_inmask_list)
+    out_mask_acc_mean = mean(XAI_outmask_list)
+    print("in_mask_acc_mean",in_mask_acc_mean,"out_mask_acc_mean",out_mask_acc_mean,"XAI ACC", correct/i)
+    return in_mask_acc_mean,out_mask_acc_mean,correct/i
 
 
 if __name__=="__main__":
@@ -206,8 +401,6 @@ if __name__=="__main__":
             out += self.shortcut(x)
             out = F.relu(out)
             return out
-
-
 
     class ResNet(nn.Module):
         def __init__(self, block, num_blocks, num_classes=100):
@@ -241,7 +434,6 @@ if __name__=="__main__":
             out = out.view(out.size(0), -1)
             out = self.linear(out)
             return out
-
 
     def ResNet18():
         return ResNet(BasicBlock, [2, 2, 2, 2])

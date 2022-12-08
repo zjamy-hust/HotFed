@@ -13,6 +13,8 @@ from captum.attr import DeepLift
 from captum.attr import NoiseTunnel
 from captum.attr import visualization as viz
 
+from utils import weights_norm_2L_regularization
+
 best_global_acc = 0
 
 class DatasetSplit(Dataset):
@@ -148,6 +150,52 @@ class LocalUpdate(object):
             print(f'Global:{global_round}, user:{user}, train accuracy:{100*accuracy:.2f}%, loss:{loss:.4f}, correct:{correct:.0f}, total:{total:.0f}, best local acc: {100*self.best_local_acc:.2f}%')
         return accuracy, loss, is_best
 
+    def update_weights_fedprox(self, model, global_round, user, global_model):
+        # Set mode to train model
+        epoch_loss = []
+
+        # Set optimizer for the local updates
+        if self.args.optimizer == 'sgd':
+            optimizer = torch.optim.SGD(model.parameters(), lr=self.args.lr,
+                                        momentum=0.9, weight_decay=5e-4)
+        elif self.args.optimizer == 'adam':
+            optimizer = torch.optim.Adam(model.parameters(), lr=self.args.lr,
+                                         weight_decay=1e-4)
+        scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=self.args.local_ep)
+
+        loader = self.trainloader
+            
+        for iter in range(self.args.local_ep):
+            is_best = 0
+            batch_loss = []
+            model.train()
+            
+            for batch_idx, (images, labels, idxs) in enumerate(loader):
+                images, labels = images.to(self.device), labels.to(self.device)
+                # print(len(images), len(labels))
+                model.zero_grad()
+                log_probs = model(images)
+                loss = self.criterion(log_probs, labels) + weights_norm_2L_regularization(global_model.state_dict(), model.state_dict())
+                # optimizer.zero_grad()
+                loss.backward()
+               
+                self.logger.add_scalar('loss', loss.item())
+                batch_loss.append(loss.item())
+                optimizer.step()
+                
+            if self.args.verbose :
+                    print('| Global Round : {} | Local Epoch : {} | User ID: {} | Data size: {} \tLoss: {:.4f}'.format(
+                        global_round, iter, user, len(loader.dataset), loss.item()))
+            epoch_loss.append(sum(batch_loss)/len(batch_loss))
+            _, _, is_best = self.inference(model, global_round, user)
+            if is_best > 0:
+                best_model = copy.deepcopy(model)
+                best_epoch_loss = epoch_loss
+                best_loss = loss
+            scheduler.step()
+
+        return best_model.state_dict(), sum(best_epoch_loss) / len(best_epoch_loss), best_model
+
     def update_weights_augmentation(self, model, global_round, user, train_masks):
         # Set mode to train model
         epoch_loss = []
@@ -170,37 +218,27 @@ class LocalUpdate(object):
             
             for batch_idx, (images, labels, idxs) in enumerate(loader):
                 images, labels = images.to(self.device), labels.to(self.device)
+                # # print(len(images), len(labels))
+                # model.zero_grad()
+                # log_probs = model(images)
+                # loss = self.criterion(log_probs, labels)
+                # # optimizer.zero_grad()
+                # loss.backward(retain_graph=True)
+               
+                # self.logger.add_scalar('loss', loss.item())
+                # batch_loss.append(loss.item())
+                # optimizer.step()
+                
+                #获取训练样本对应的masks
                 masks_with_idx = [train_masks[int(index)] for index in idxs]  #根据idxs索引对应的mask
                 masks = torch.stack([item[0] for item in masks_with_idx],dim=0).unsqueeze(1)
                 images_ = masks * images
-                # images.append(images_)
-                # images = torch.tensor([images,images_])
-                # labels = torch.tensor([labels,labels])
-                images,images_, labels = images.to(self.device), images_.to(self.device),labels.to(self.device)
                 # print(len(images), len(labels))
                 model.zero_grad()
-                log_probs = model(images)
-                log_probs_ = model(images_)
-                log_probs=torch.concat([log_probs, log_probs_],0)
-                labels=torch.concat([labels,labels],0)
+                log_probs = model(images_)
                 loss = self.criterion(log_probs, labels)
                 # optimizer.zero_grad()
-                loss.backward(retain_graph=True)
-               
-                self.logger.add_scalar('loss', loss.item())
-                batch_loss.append(loss.item())
-                optimizer.step()
-                
-                # #获取训练样本对应的masks
-                # masks_with_idx = [train_masks[int(index)] for index in idxs]  #根据idxs索引对应的mask
-                # masks = torch.stack([item[0] for item in masks_with_idx],dim=0).unsqueeze(1)
-                # images_ = masks * images
-                # # print(len(images), len(labels))
-                # model.zero_grad()
-                # log_probs = model(images_)
-                # loss = self.criterion(log_probs, labels)
-                # # optimizer.zero_grad()
-                # loss.backward()
+                loss.backward()
                
                 # self.logger.add_scalar('loss', loss.item())
                 # batch_loss.append(loss.item())

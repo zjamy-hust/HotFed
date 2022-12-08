@@ -8,7 +8,7 @@ import os
 import shutil
 import time
 from torchvision import datasets, transforms
-from datasets.sampling_partition import cifar_iid, cifar_noniid, cifar100_iid, cifar100_noniid
+from datasets.sampling_partition import cifar_iid, cifar_noniid, cifar100_iid, cifar100_noniid, mnist_iid, mnist_noniid
 
 
 def get_dataset(args):
@@ -23,23 +23,33 @@ def get_dataset(args):
     #     shared_data = args.shared_data
     # print('zjamy shared data',shared_data)
 
-    train_transform = transforms.Compose(
+    cifar_train_transform = transforms.Compose(
             [transforms.RandomHorizontalFlip(),
              transforms.RandomGrayscale(),
              transforms.ToTensor(),
              transforms.RandomCrop(32, padding=4),
              transforms.Normalize((0.4914, 0.4822, 0.4465), (0.2023, 0.1994, 0.2010))])
 
-    apply_transform = transforms.Compose(
+    cifar_apply_transform = transforms.Compose(
             [transforms.ToTensor(),
              transforms.Normalize((0.4914, 0.4822, 0.4465), (0.2023, 0.1994, 0.2010))])
+    
+    mnist_train_transform = transforms.Compose(             #是否需要进行数据增强？？？？？？？？？？？？？
+            [transforms.RandomHorizontalFlip(),
+             transforms.RandomGrayscale(),
+             transforms.ToTensor(),
+             transforms.RandomCrop(28, padding=4), 
+             transforms.Normalize([0.5], [0.5])])
+    mnist_apply_transform = transforms.Compose(
+            [transforms.ToTensor(), 
+             transforms.Normalize([0.5], [0.5])])
 
     if args.dataset == 'cifar10':
         train_dataset = datasets.CIFAR10(data_dir, train=True, download=True,
-                                       transform=train_transform)
+                                       transform=cifar_train_transform)
 
         test_dataset = datasets.CIFAR10(data_dir, train=False, download=True,
-                                      transform=apply_transform)
+                                      transform=cifar_apply_transform)
         if args.iid:
         # Sample IID user data 
             user_groups = cifar_iid(train_dataset, args.num_users)
@@ -48,16 +58,28 @@ def get_dataset(args):
             user_groups = cifar_noniid(train_dataset, args.num_users, args.partition)
     elif args.dataset == 'cifar100':
         train_dataset = datasets.CIFAR100(data_dir, train=True, download=True,
-                                       transform=train_transform)
+                                       transform=cifar_train_transform)
 
         test_dataset = datasets.CIFAR100(data_dir, train=False, download=True,
-                                      transform=apply_transform)
+                                      transform=cifar_apply_transform)
         if args.iid:
         # Sample IID user data 
             user_groups = cifar100_iid(train_dataset, args.num_users)
         else:
         # Sample Non-IID user data
             user_groups = cifar100_noniid(train_dataset, args.num_users, args.partition)
+    elif args.dataset == 'MNIST':
+        train_dataset = datasets.MNIST(data_dir, train=True, download=True,
+                                       transform=mnist_train_transform)
+
+        test_dataset = datasets.MNIST(data_dir, train=False, download=True,
+                                      transform=mnist_apply_transform)
+        if args.iid:
+        # Sample IID user data 
+            user_groups = mnist_iid(train_dataset, args.num_users)
+        else:
+        # Sample Non-IID user data
+            user_groups = mnist_noniid(train_dataset, args.num_users, args.partition)
     # check proportion of shared_data
 
     # sample training data amongst users
@@ -76,6 +98,16 @@ def average_weights(w,selected_list):
             w_avg[key] += w[i][key]
         w_avg[key] = torch.div(w_avg[key], len(w))
     return w_avg
+
+def weights_norm_2L_regularization(global_model_dict, local_model_dict):
+    local_model_ = copy.deepcopy(local_model_dict)
+    global_model_ = copy.deepcopy(global_model_dict)
+    
+    regularization_num=0
+    for key in local_model_.keys():
+        if "weight" in key or "bias" in key:
+            regularization_num += torch.norm(global_model_[key] - local_model_[key], p=2)
+    return regularization_num
 
 
 def exp_details(log,args):
