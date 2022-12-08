@@ -119,7 +119,16 @@ def XAI_evaluate(net_x,files, path, showimg,p,device, XAI_labels,classes):
             input_asset=input_asset.to(device)
             torch.cuda.empty_cache()
             #the 2nd parameter can be input_asset or input_asset_norm, input_asset_norm will show better ACC in XAI
-            attr_ig_nt = attribute_image_features(net_x,nt, input_asset_norm,truth=XAI_labels[int(im_name[:-4])-1], label=predicted_asset[0], baselines=input_asset * 0, nt_type='smoothgrad_sq',  nt_samples=50, n_step=50, stdevs=0.2)
+            attr_ig_nt = attribute_image_features(net_x,
+                                                  nt, 
+                                                  input_asset_norm,
+                                                  truth=XAI_labels[int(im_name[:-4])-1], 
+                                                  label=predicted_asset[0], 
+                                                  baselines=input_asset * 0, 
+                                                  nt_type='smoothgrad_sq', 
+                                                  nt_samples=50, 
+                                                  n_steps=50, 
+                                                  stdevs=0.2)
             attr_ig_nt = np.transpose(attr_ig_nt.squeeze(0).cpu().detach().numpy(), (1, 2, 0))
             
             #计算二值化masks

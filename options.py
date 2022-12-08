@@ -9,9 +9,9 @@ def args_parser():
     # federated arguments (Notation for the arguments followed from paper)
     parser.add_argument('--epochs', type=int, default=2,
                         help="number of rounds of training")
-    parser.add_argument('--num_users', type=int, default=1,
+    parser.add_argument('--num_users', type=int, default=3,
                         help="number of users: K")
-    parser.add_argument('--client_selection_num', type=int, default=1,
+    parser.add_argument('--client_selection_num', type=int, default=3,
                         help='选中client的数量。')
 #    parser.add_argument('--frac', type=float, default=0.1,
 #                        help='the fraction of clients: C')
@@ -37,7 +37,7 @@ def args_parser():
     parser.add_argument('--pretrained_model', type=str, default='')
     
     # other arguments
-    parser.add_argument('--dataset', type=str, default='MNIST', 
+    parser.add_argument('--dataset', type=str, default='cifar10', 
                         help="name of dataset. ['cifar10','cifar100','MNIST']")
     parser.add_argument('--num_classes', type=int, default=10, help="number \
                         of classes")
