@@ -254,6 +254,9 @@ if __name__ == '__main__':
                                                         topk = 0.5)          #速度比较慢、占用空间比较大？？？？？？？？？？？？
                     w, loss, lw  = local_model.update_weights_augmentation(
                         model=local_init_model, global_round=epoch, user=idx, train_masks = train_masks) 
+            elif args.mode == 4:        #执行FedProx
+                w, loss, lw  = local_model.update_weights_fedprox(
+                    model=local_init_model, global_round=epoch, user=idx, global_model=global_model)
             else:
                 raise ValueError("args.mode有误。")
             
@@ -276,7 +279,7 @@ if __name__ == '__main__':
             local_test_loss_list.append((idx,local_test_loss))
 
             ##### add XAI calc here #####           #用一个小的样本集计算出XAI指标之后，如何混合Acc和XAI_Acc？？？？？？？？？？？
-            if args.mode in [0,1]:  #mode == 2不需要进行该评估
+            if args.mode in [0,1,4]:  #mode == 2不需要进行该评估
             # xai_device= (f'cuda:{str(args.gpu-1)}')  if torch.cuda.is_available() else 'cpu'
                 in_mask_acc_mean,out_mask_acc_mean,XAI_ACC=XAI_evaluate(copy.deepcopy(lw),
                                                                         files,
