@@ -401,17 +401,17 @@ if __name__ == '__main__':
             log.logger.debug('Test Accuracy: {:.2f}% '.format(100*test_acc))
             print('Best Test Accuracy: {:.2f}% \n'.format(100*best_test_acc))
             log.logger.debug('Best Test Accuracy: {:.2f}% \n'.format(100*best_test_acc))
-            print('Global XAI_ACC: {:.2f}% \n'.format(100 * XAI_ACC))
-            log.logger.debug('Global XAI_ACC: {:.2f}% \n'.format(100*XAI_ACC))
-            print('Global XAI_ACC: {:.2f}% \n'.format(100 * XAI_ACC))
-            log.logger.debug('Global in_mask_acc_mean: {:.2f}% \n'.format(100*in_mask_acc_mean))
+            print('Global XAI_ACC: {:.2f}% \n'.format(100 * test_XAI_ACC))
+            log.logger.debug('Global XAI_ACC: {:.2f}% \n'.format(100*test_XAI_ACC))
+            print('Global XAI_ACC: {:.2f}% \n'.format(100 * test_XAI_ACC))
+            log.logger.debug('Global in_mask_acc_mean: {:.2f}% \n'.format(100*test_in_mask_acc_mean))
         scheduler.step()
         
         print("epoch Run Time: ",time.time()-epoch_start_time)
         print("test_loss_list.append",test_loss_list)
         print("test_acc_list.append",test_acc_list)
-        print("test_in_mask_acc_mean.append",test_in_mask_acc_mean)
-        print("test_XAI_ACC.append",test_XAI_ACC)
+        print("test_in_mask_acc_mean.append",test_in_mask_acc_mean_list)
+        print("test_XAI_ACC.append",test_XAI_ACC_list)
 
     # Test inference after completion of training
     test_acc, test_loss =  test_inference(args, global_model, test_dataset)
