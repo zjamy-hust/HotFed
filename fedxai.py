@@ -216,6 +216,7 @@ if __name__ == '__main__':
         local_test_acc_list = []
         local_test_loss_list = []
         local_XAI_acc_list = []
+        in_mask_acc_mean_list = []
         for idx in range(start_user,args.num_users):
             local_model = LocalUpdate(args=args, dataset=train_dataset,
                                       idxs=user_groups[idx], logger=logger)
@@ -276,6 +277,7 @@ if __name__ == '__main__':
                                                                         XAI_labels=XAI_labels,
                                                                         classes=classes)
                 local_XAI_acc_list.append((idx,XAI_ACC))
+                in_mask_acc_mean_list.append((idx,in_mask_acc_mean))
             #######end XAI calc#####
 
             local_weights.append(copy.deepcopy(w))
@@ -338,7 +340,7 @@ if __name__ == '__main__':
         # print global training loss after every 'i' rounds
         test_acc, test_loss =  test_inference(args, global_model, test_dataset)
         
-        in_mask_acc_mean,out_mask_acc_mean,XAI_ACC=XAI_evaluate(copy.deepcopy(global_model),
+        test_in_mask_acc_mean,out_mask_acc_mean,test_XAI_ACC=XAI_evaluate(copy.deepcopy(global_model),
                                                                         files,
                                                                         assetpath,
                                                                         showimg=0,
@@ -349,6 +351,8 @@ if __name__ == '__main__':
         
         test_loss_list.append(test_loss)
         test_acc_list.append(test_acc)
+        test_in_mask_acc_mean_list.append(test_in_mask_acc_mean)
+        test_test_XAI_ACC_list.append(test_XAI_ACC)
         if test_acc > best_test_acc:
             best_test_acc = test_acc
             is_best = 1
@@ -372,9 +376,15 @@ if __name__ == '__main__':
             log.logger.debug('Best Test Accuracy: {:.2f}% \n'.format(100*best_test_acc))
             print('Global XAI_ACC: {:.2f}% \n'.format(100 * XAI_ACC))
             log.logger.debug('Global XAI_ACC: {:.2f}% \n'.format(100*XAI_ACC))
+            print('Global XAI_ACC: {:.2f}% \n'.format(100 * XAI_ACC))
+            log.logger.debug('Global in_mask_acc_mean: {:.2f}% \n'.format(100*in_mask_acc_mean))
         scheduler.step()
         
         print("epoch Run Time: ",time.time()-epoch_start_time)
+        print("test_loss_list.append",test_loss_list)
+        print("test_acc_list.append",test_acc_list)
+        print("test_in_mask_acc_mean.append",test_in_mask_acc_mean)
+        print("test_test_XAI_ACC.append",test_test_XAI_ACC)
 
     # Test inference after completion of training
     test_acc, test_loss =  test_inference(args, global_model, test_dataset)

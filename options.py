@@ -38,7 +38,7 @@ def args_parser():
                         help='Default set to IID. Set to 0 for non-IID.')
     parser.add_argument('--stopping_rounds', type=int, default=10,
                         help='rounds of early stopping')
-    parser.add_argument('--client_selection_num', type=int, default=15,
+    parser.add_argument('--client_selection_num', type=int, default=16,
                         help='选中client的数量。')
     parser.add_argument('--mode', type=int, default=1,
                         help='[0,1,2]。0表示FedAvg； \

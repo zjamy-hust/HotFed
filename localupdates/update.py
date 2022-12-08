@@ -170,9 +170,19 @@ class LocalUpdate(object):
             
             for batch_idx, (images, labels, idxs) in enumerate(loader):
                 images, labels = images.to(self.device), labels.to(self.device)
+                masks_with_idx = [train_masks[int(index)] for index in idxs]  #根据idxs索引对应的mask
+                masks = torch.stack([item[0] for item in masks_with_idx],dim=0).unsqueeze(1)
+                images_ = masks * images
+                # images.append(images_)
+                # images = torch.tensor([images,images_])
+                # labels = torch.tensor([labels,labels])
+                images,images_, labels = images.to(self.device), images_.to(self.device),labels.to(self.device)
                 # print(len(images), len(labels))
                 model.zero_grad()
                 log_probs = model(images)
+                log_probs_ = model(images_)
+                log_probs=torch.concat([log_probs, log_probs_],0)
+                labels=torch.concat([labels,labels],0)
                 loss = self.criterion(log_probs, labels)
                 # optimizer.zero_grad()
                 loss.backward(retain_graph=True)
@@ -181,20 +191,20 @@ class LocalUpdate(object):
                 batch_loss.append(loss.item())
                 optimizer.step()
                 
-                #获取训练样本对应的masks
-                masks_with_idx = [train_masks[int(index)] for index in idxs]  #根据idxs索引对应的mask
-                masks = torch.stack([item[0] for item in masks_with_idx],dim=0).unsqueeze(1)
-                images_ = masks * images
-                # print(len(images), len(labels))
-                model.zero_grad()
-                log_probs = model(images_)
-                loss = self.criterion(log_probs, labels)
-                # optimizer.zero_grad()
-                loss.backward()
+                # #获取训练样本对应的masks
+                # masks_with_idx = [train_masks[int(index)] for index in idxs]  #根据idxs索引对应的mask
+                # masks = torch.stack([item[0] for item in masks_with_idx],dim=0).unsqueeze(1)
+                # images_ = masks * images
+                # # print(len(images), len(labels))
+                # model.zero_grad()
+                # log_probs = model(images_)
+                # loss = self.criterion(log_probs, labels)
+                # # optimizer.zero_grad()
+                # loss.backward()
                
-                self.logger.add_scalar('loss', loss.item())
-                batch_loss.append(loss.item())
-                optimizer.step()
+                # self.logger.add_scalar('loss', loss.item())
+                # batch_loss.append(loss.item())
+                # optimizer.step()
                 
             if self.args.verbose :
                     print('| Global Round : {} | Local Epoch : {} | User ID: {} | Data size: {} \tLoss: {:.4f}'.format(
