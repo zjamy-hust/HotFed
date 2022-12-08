@@ -203,7 +203,7 @@ if __name__ == '__main__':
     test_loss_list = []
     test_acc_list = []
     test_in_mask_acc_mean_list = []
-    test_test_XAI_ACC_list = []
+    test_XAI_ACC_list = []
 
     
     for epoch in range(start_epoch, start_epoch+args.epochs):
@@ -379,7 +379,7 @@ if __name__ == '__main__':
         test_loss_list.append(test_loss)
         test_acc_list.append(test_acc)
         test_in_mask_acc_mean_list.append(test_in_mask_acc_mean)
-        test_test_XAI_ACC_list.append(test_XAI_ACC)
+        test_XAI_ACC_list.append(test_XAI_ACC)
         if test_acc > best_test_acc:
             best_test_acc = test_acc
             is_best = 1
@@ -411,7 +411,7 @@ if __name__ == '__main__':
         print("test_loss_list.append",test_loss_list)
         print("test_acc_list.append",test_acc_list)
         print("test_in_mask_acc_mean.append",test_in_mask_acc_mean)
-        print("test_test_XAI_ACC.append",test_test_XAI_ACC)
+        print("test_XAI_ACC.append",test_XAI_ACC)
 
     # Test inference after completion of training
     test_acc, test_loss =  test_inference(args, global_model, test_dataset)
