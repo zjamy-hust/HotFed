@@ -91,7 +91,7 @@ def average_weights(w,selected_list):
     """
     Returns the average of the weights.
     """
-    w_avg = copy.deepcopy(w[0])
+    w_avg = copy.deepcopy(w[selected_list[0]])
     for key in w_avg.keys():
         # for i in range(1, len(w)):
         for i in selected_list:
