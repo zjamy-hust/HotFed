@@ -202,6 +202,7 @@ if __name__ == '__main__':
 
     test_loss_list = []
     test_acc_list = []
+    test_in_mask_acc_mean_list = []
 
     
     for epoch in range(start_epoch, start_epoch+args.epochs):
