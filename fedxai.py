@@ -3,15 +3,15 @@
 # Python version: 3.6
 
 """
-版本：12月3日-1
+版本：12月6日-1
 修改内容：
-1、增加不同模式。例如data augmentation、带mask进行inference等
-2、增加设置随机数代码
-3、更改xai.py中，产生mask的代码（127行）。
-4、将XAI_acc和acc一并作为selection过程的依据（296行）
-5、为了实现XAI_masks和样本之间的匹配关系，所有dataloader都采用DataSplit初始化。并将DataSplit的输出增加为三个。->目前已解决。
-    注意，debug的时候，需要在utils.py中取消CIFAR10的transforms中“Randomxxxxxx”变换
-6、对于mode==1，增加了一个参数”start_epoch“，用于指定第几轮开始data augmentation
+1、我觉得可以根据某个global epoch产生的mask，以及在这个global epoch下client训练之后的mask进行说
+    明。因为飞机那个是人为规定的mask，万一global和client都用了飞机mask之外的特征呢？
+    
+    
+    
+# 2、改写xai.py中的XAI_evaluation。围绕以下几点进行修改：能够批量读取文件夹下的图，构成dataset；能够调用generate_dataset_mask
+#     产生masks；能够通过matplotlib绘制图片，并写入文件。
 """
 
 import os
@@ -31,11 +31,11 @@ from options import args_parser
 from utils import get_dataset, average_weights, exp_details, save_checkpoint
 from localupdates.update import LocalUpdate, test_inference, test_inference_with_mask, generate_dataset_mask
 from models.models import TestmyNet
-from models.models_resnet import ResNet18
+from models.models_resnet import ResNet18, ResNet18_MNIST
 from models.models_shufflenetv2 import ShuffleNetV2
 from models.models_resnext import resnext
 from operator import itemgetter, attrgetter
-from xai import XAI_evaluate
+from xai import XAI_evaluate, XAI_evaluate_with_global_masks
 from pathlib import Path
 best_local_acc = 0
 best_global_acc = 0
@@ -130,7 +130,12 @@ if __name__ == '__main__':
     if args.model == 'test':
         global_model = TestmyNet()
     elif args.model == 'resnet18':
-        global_model = ResNet18()
+        if args.dataset == "cifar10":
+            global_model = ResNet18()
+        elif args.dataset == "MNIST":
+            global_model = ResNet18_MNIST()
+        else:
+            raise ValueError("args.dataset有误。")
     elif args.model == 'shufflenetv2':
         global_model = ShuffleNetV2(1)
     elif args.model == 'resnext':
@@ -226,8 +231,11 @@ if __name__ == '__main__':
             if args.mode in [0,2]:  
                 w, loss, lw  = local_model.update_weights(
                     model=local_init_model, global_round=epoch, user=idx)
+            elif args.mode == 4:        #执行FedProx
+                w, loss, lw  = local_model.update_weights_fedprox(
+                    model=local_init_model, global_round=epoch, user=idx, global_model=global_model)
             elif args.mode == 1:    #进行augumentation计算         
-                if epoch < args.start_epoch:       #跳过跳过前几轮
+                if epoch < args.mode1_start_epoch:       #跳过跳过前几轮
                     w, loss, lw  = local_model.update_weights(
                         model=local_init_model, global_round=epoch, user=idx)
                     
@@ -248,17 +256,18 @@ if __name__ == '__main__':
                 raise ValueError("args.mode有误。")
             
             #simulate this will happen in the enclave or cloud side
-            if args.mode in [0,1]:  #只有mode==2才进行给test数据加上mask
+            if args.mode in [0,1,4]:  #只有mode==2才进行给test数据加上mask
                 local_test_acc, local_test_loss =  test_inference(args, model=copy.deepcopy(lw), test_dataset=test_dataset) 
             elif args.mode == 2:
-                test_masks = generate_dataset_mask(local_init_model,
-                                                    dataset=test_dataset,
-                                                    idxs=[i for i in range(len(test_dataset))],
-                                                    batch_size=args.test_mask_batch_size,
-                                                    nt_samples=args.test_mask_nt_samples,
-                                                    n_steps=args.test_mask_n_steps,
-                                                    device=device,
-                                                    topk = 0.5)     #其实这个东西可以是服务器随着测试集发送过来。，因此放到遍历客户端的for循环之外，只执行1次即可
+                if epoch < args.mode2_end_epoch:
+                    test_masks = generate_dataset_mask(local_init_model,
+                                                        dataset=test_dataset,
+                                                        idxs=[i for i in range(len(test_dataset))],
+                                                        batch_size=args.test_mask_batch_size,
+                                                        nt_samples=args.test_mask_nt_samples,
+                                                        n_steps=args.test_mask_n_steps,
+                                                        device=device,
+                                                        topk = 0.5)     #其实这个东西可以是服务器随着测试集发送过来。，因此放到遍历客户端的for循环之外，只执行1次即可
                 local_test_acc, local_test_loss =  test_inference_with_mask(args, model=copy.deepcopy(lw), test_dataset=test_dataset, test_masks=test_masks)
             
             local_test_acc_list.append((idx,local_test_acc))
@@ -275,6 +284,19 @@ if __name__ == '__main__':
                                                                         device=device,
                                                                         XAI_labels=XAI_labels,
                                                                         classes=classes)
+                # in_mask_acc_mean,out_mask_acc_mean,XAI_ACC=XAI_evaluate_with_global_masks(copy.deepcopy(lw),
+                #                                                                         files,
+                #                                                                         assetpath,
+                #                                                                         device=device,
+                #                                                                         XAI_labels=XAI_labels,
+                #                                                                         classes=classes,
+                #                                                                         nt_samples=20,
+                #                                                                         nt_steps=20,
+                #                                                                         margin=0.1,
+                #                                                                         compare_sever_client_masks=True if args.compare_sever_client_masks == 1 else 0,
+                #                                                                         global_model=global_model,
+                #                                                                         batch_size=1,
+                #                                                                         output_path="./res/")
                 local_XAI_acc_list.append((idx,XAI_ACC))
             #######end XAI calc#####
 
@@ -302,7 +324,7 @@ if __name__ == '__main__':
         
         #先计算混合结果，再排序
         #混合acc和XAI进行衡量，此处实现的是平均值？？？？？？？？？？？？？？
-        if args.mode in [0,1]:
+        if args.mode in [0,1,4]:
             mean_acc_and_XAI_acc = [(local_test_acc_list[i][0],(local_test_acc_list[i][1]+local_XAI_acc_list[i][1])/2) for i in range(len(local_test_acc_list))]    #计算结果：(idx, (acc+XAI_acc)/2)
             res = sorted(mean_acc_and_XAI_acc, key=itemgetter(1), reverse = True)[:N]
         elif args.mode == 2:
