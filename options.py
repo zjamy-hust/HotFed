@@ -7,15 +7,15 @@ def args_parser():
     parser = argparse.ArgumentParser()
 
     # federated arguments (Notation for the arguments followed from paper)
-    parser.add_argument('--epochs', type=int, default=2,
+    parser.add_argument('--epochs', type=int, default=10,
                         help="number of rounds of training")
-    parser.add_argument('--num_users', type=int, default=3,
+    parser.add_argument('--num_users', type=int, default=16,
                         help="number of users: K")
-    parser.add_argument('--client_selection_num', type=int, default=3,
+    parser.add_argument('--client_selection_num', type=int, default=16,
                         help='选中client的数量。')
 #    parser.add_argument('--frac', type=float, default=0.1,
 #                        help='the fraction of clients: C')
-    parser.add_argument('--local_ep', type=int, default=1,
+    parser.add_argument('--local_ep', type=int, default=50,
                         help="the number of local epochs: E")
     parser.add_argument('--local_bs', type=int, default=128,
                         help="local batch size: B")
@@ -23,9 +23,9 @@ def args_parser():
                         help='learning rate')
     parser.add_argument('--optimizer', type=str, default='sgd', help="type \
                         of optimizer")
-    parser.add_argument('--momentum', type=float, default=0.9,
+    parser.add_argument('--momentum', type=float, default=0.5,
                         help='SGD momentum (default: 0.5)')
-    parser.add_argument('--stopping_rounds', type=int, default=10,
+    parser.add_argument('--stopping_rounds', type=int, default=20,
                         help='rounds of early stopping')
 
 
