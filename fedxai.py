@@ -35,7 +35,7 @@ from models.models_resnet import ResNet18, ResNet18_MNIST
 from models.models_shufflenetv2 import ShuffleNetV2
 from models.models_resnext import resnext
 from operator import itemgetter, attrgetter
-from xai import XAI_evaluate, XAI_evaluate_with_global_masks
+from xai import XAI_evaluate_cifar, XAI_evaluate_with_global_masks
 from pathlib import Path
 best_local_acc = 0
 best_global_acc = 0
@@ -282,7 +282,8 @@ if __name__ == '__main__':
             ##### add XAI calc here #####           #用一个小的样本集计算出XAI指标之后，如何混合Acc和XAI_Acc？？？？？？？？？？？
             if args.mode in [0,1,4]:  #mode == 2不需要进行该评估
             # xai_device= (f'cuda:{str(args.gpu-1)}')  if torch.cuda.is_available() else 'cpu'
-                in_mask_acc_mean,out_mask_acc_mean,XAI_ACC=XAI_evaluate(copy.deepcopy(lw),
+                if args.dataset == "cifar10":
+                    in_mask_acc_mean,out_mask_acc_mean,XAI_ACC=XAI_evaluate_cifar(copy.deepcopy(lw),
                                                                         files,
                                                                         assetpath,
                                                                         showimg=0,
@@ -290,6 +291,8 @@ if __name__ == '__main__':
                                                                         device=device,
                                                                         XAI_labels=XAI_labels,
                                                                         classes=classes)
+                else:
+                    in_mask_acc_mean,out_mask_acc_mean,XAI_ACC=0,0,0
                 # in_mask_acc_mean,out_mask_acc_mean,XAI_ACC=XAI_evaluate_with_global_masks(copy.deepcopy(lw),
                 #                                                                         files,
                 #                                                                         assetpath,
@@ -367,7 +370,8 @@ if __name__ == '__main__':
         # print global training loss after every 'i' rounds
         test_acc, test_loss =  test_inference(args, global_model, test_dataset)
         
-        test_in_mask_acc_mean,out_mask_acc_mean,test_XAI_ACC=XAI_evaluate(copy.deepcopy(global_model),
+        if args.dataset == "cifar10":
+            test_in_mask_acc_mean,out_mask_acc_mean,test_XAI_ACC=XAI_evaluate_cifar(copy.deepcopy(global_model),
                                                                         files,
                                                                         assetpath,
                                                                         showimg=0,
@@ -375,6 +379,8 @@ if __name__ == '__main__':
                                                                         device=device,
                                                                         XAI_labels=XAI_labels,
                                                                         classes=classes)
+        else :
+            test_in_mask_acc_mean,out_mask_acc_mean,test_XAI_ACC= 0, 0, 0
         
         test_loss_list.append(test_loss)
         test_acc_list.append(test_acc)
