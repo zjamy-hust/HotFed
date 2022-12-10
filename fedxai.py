@@ -428,7 +428,7 @@ if __name__ == '__main__':
             log.logger.debug('Best Test Accuracy: {:.2f}% \n'.format(100*best_test_acc))
             print('Global XAI_ACC: {:.2f}% \n'.format(100 * XAI_ACC))
             log.logger.debug('Global XAI_ACC: {:.2f}% \n'.format(100*XAI_ACC))
-            print('Global XAI_ACC: {:.2f}% \n'.format(100 * in_mask_acc_mean))
+            print('Global in_mask_acc_mean: {:.2f}% \n'.format(100 * in_mask_acc_mean))
             log.logger.debug('Global in_mask_acc_mean: {:.2f}% \n'.format(100*in_mask_acc_mean))
         scheduler.step()
         
