@@ -6,6 +6,7 @@ import torch
 import copy
 from torch import nn
 from torch.utils.data import DataLoader, Dataset
+import torch.nn.functional as F
 
 from captum.attr import IntegratedGradients
 from captum.attr import Saliency
@@ -79,6 +80,7 @@ class LocalUpdate(object):
 
         loader = self.trainloader
             
+        loss_epochs=0
         for iter in range(self.args.local_ep):
             is_best = 0
             batch_loss = []
@@ -93,12 +95,13 @@ class LocalUpdate(object):
                 # optimizer.zero_grad()
                 loss.backward()
                
-                self.logger.add_scalar('loss', loss.item())
+                self.logger.add_scalar(f'user{user}_train_loss', loss.item(),loss_epochs)
                 batch_loss.append(loss.item())
                 optimizer.step()
+                loss_epochs+=1
                 
             if self.args.verbose :
-                    print('| Global Round : {} | Local Epoch : {} | User ID: {} | Data size: {} \tLoss: {:.4f}'.format(
+                print('| Global Round : {} | Local Epoch : {} | User ID: {} | Data size: {} \tLoss: {:.4f}'.format(
                         global_round, iter, user, len(loader.dataset), loss.item()))
             epoch_loss.append(sum(batch_loss)/len(batch_loss))
             _, _, is_best = self.inference(model, global_round, user)
@@ -164,7 +167,8 @@ class LocalUpdate(object):
         scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=self.args.local_ep)
 
         loader = self.trainloader
-            
+        
+        loss_epochs=0
         for iter in range(self.args.local_ep):
             is_best = 0
             batch_loss = []
@@ -179,12 +183,14 @@ class LocalUpdate(object):
                 # optimizer.zero_grad()
                 loss.backward()
                
-                self.logger.add_scalar('loss', loss.item())
+                self.logger.add_scalar(f'user{user}_train_loss', loss.item(),loss_epochs)
                 batch_loss.append(loss.item())
                 optimizer.step()
                 
+                loss_epochs+=1
+                
             if self.args.verbose :
-                    print('| Global Round : {} | Local Epoch : {} | User ID: {} | Data size: {} \tLoss: {:.4f}'.format(
+                print('| Global Round : {} | Local Epoch : {} | User ID: {} | Data size: {} \tLoss: {:.4f}'.format(
                         global_round, iter, user, len(loader.dataset), loss.item()))
             epoch_loss.append(sum(batch_loss)/len(batch_loss))
             _, _, is_best = self.inference(model, global_round, user)
@@ -211,6 +217,7 @@ class LocalUpdate(object):
 
         loader = self.trainloader
             
+        loss_epochs=0
         for iter in range(self.args.local_ep):
             is_best = 0
             batch_loss = []
@@ -240,12 +247,14 @@ class LocalUpdate(object):
                 # optimizer.zero_grad()
                 loss.backward()
                
-                self.logger.add_scalar('loss', loss.item())
+                self.logger.add_scalar(f'user{user}_train_loss', loss.item(),loss_epochs)
                 batch_loss.append(loss.item())
                 optimizer.step()
                 
+                loss_epochs+=1
+                
             if self.args.verbose :
-                    print('| Global Round : {} | Local Epoch : {} | User ID: {} | Data size: {} \tLoss: {:.4f}'.format(
+                print('| Global Round : {} | Local Epoch : {} | User ID: {} | Data size: {} \tLoss: {:.4f}'.format(
                         global_round, iter, user, len(loader.dataset), loss.item()))
             epoch_loss.append(sum(batch_loss)/len(batch_loss))
             _, _, is_best = self.inference(model, global_round, user)
@@ -257,6 +266,78 @@ class LocalUpdate(object):
 
         return best_model.state_dict(), sum(best_epoch_loss) / len(best_epoch_loss), best_model
 
+    def update_weights_augmentation_similarity(self, model, device, global_round, user, train_mask_batch_size, train_mask_nt_samples, train_mask_n_steps, topk, mse_loss_lambda):
+        # Set mode to train model
+        epoch_loss = []
+
+        # Set optimizer for the local updates
+        if self.args.optimizer == 'sgd':
+            optimizer = torch.optim.SGD(model.parameters(), lr=self.args.lr,
+                                        momentum=0.9, weight_decay=5e-4)
+        elif self.args.optimizer == 'adam':
+            optimizer = torch.optim.Adam(model.parameters(), lr=self.args.lr,
+                                         weight_decay=1e-4)
+        scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=self.args.local_ep)
+
+        loader = self.trainloader
+            
+        loss_epochs=0
+        for iter in range(self.args.local_ep):
+            is_best = 0
+            batch_loss = []
+            model.train()
+            
+            #根据最新的模型产生mask
+            cur_train_masks = generate_dataset_mask(model,
+                                                    dataset=self.trainloader.dataset.dataset,
+                                                    idxs=self.trainloader.dataset.idxs,
+                                                    batch_size=train_mask_batch_size,
+                                                    nt_samples=train_mask_nt_samples,
+                                                    n_steps=train_mask_n_steps,
+                                                    device=device,
+                                                    topk = topk)          #速度比较慢、占用空间比较大？？？？？？？？？？？？考虑是否吸收到每一个batch中，即使生成？
+            
+            for batch_idx, (images, labels, idxs) in enumerate(loader):
+                images, labels = images.to(self.device), labels.to(self.device)
+
+                #获取训练样本对应的masks，先进行带mask的前向过程
+                masks_with_idx = [cur_train_masks[int(index)] for index in idxs]  #根据idxs索引对应的mask
+                masks = torch.stack([item[0] for item in masks_with_idx],dim=0).unsqueeze(1)
+                images_ = masks * images
+                # print(len(images), len(labels))
+                model.zero_grad()
+                log_probs_with_masks = model(images_)
+                
+                #进行不带mask的前向过程
+                log_probs = model(images)
+                
+                loss = self.criterion(log_probs_with_masks, labels) + mse_loss_lambda * F.mse_loss(log_probs_with_masks,log_probs.detach())   #只回传一次梯度。
+                
+                # optimizer.zero_grad()
+                loss.backward()
+               
+                self.logger.add_scalar(f'user{user}_train_loss', loss.item(),loss_epochs)
+                batch_loss.append(loss.item())
+                optimizer.step()
+                
+                loss_epochs+=1
+                
+                
+            if self.args.verbose :
+                print('| Global Round : {} | Local Epoch : {} | User ID: {} | Data size: {} \tLoss: {:.4f}'.format(
+                        global_round, iter, user, len(loader.dataset), loss.item()))
+            epoch_loss.append(sum(batch_loss)/len(batch_loss))
+            _, _, is_best = self.inference(model, global_round, user)
+            if is_best > 0:
+                best_model = copy.deepcopy(model)
+                best_epoch_loss = epoch_loss
+                best_loss = loss
+            scheduler.step()
+
+        return best_model.state_dict(), sum(best_epoch_loss) / len(best_epoch_loss), best_model
+
+    
+    
 def generate_dataset_mask(local_init_model, dataset, idxs, batch_size, nt_samples, n_steps, device, topk=0.5):   
     """
     利用服务器发来的模型产生mask
