@@ -468,6 +468,6 @@ if __name__=="__main__":
     net.to(device)
     net.eval()
 
-    a,b,c = XAI_evaluate(net,files,assetpath,1,1,device=device,XAI_labels=XAI_labels, classes=classes)
+    a,b,c = XAI_evaluate_cifar(net,files,assetpath,1,1,device=device,XAI_labels=XAI_labels, classes=classes)
 
     print("a",a,"b",b,"c",c)
