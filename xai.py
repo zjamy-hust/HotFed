@@ -75,7 +75,7 @@ def imshow(img, transpose = True):
     plt.show()
 
 
-def XAI_evaluate_cifar(net_x,files, path, showimg,p,device, XAI_labels,classes):
+def XAI_evaluate(net_x,files, path, showimg,p,device, XAI_labels,classes):
     torch.cuda.empty_cache()
     XAI_inmask_list = []
     XAI_outmask_list = []
@@ -112,7 +112,8 @@ def XAI_evaluate_cifar(net_x,files, path, showimg,p,device, XAI_labels,classes):
             truth_mask_tensor = read_image(str(Path(path)/mask_im_name),mode=torchvision.io.image.ImageReadMode.RGB)
             truth_mask = cv2.imread(str(Path(path)/mask_im_name),cv2.IMREAD_GRAYSCALE)
             truth_mask_np=truth_mask_tensor.numpy()
-            pixelnum_all=np.count_nonzero(truth_mask_np)
+            # pixelnum_all=np.count_nonzero(truth_mask_np)      #不应该计算3通道
+            pixelnum_all=np.count_nonzero(truth_mask)
             if p:
                 print("pixelnum_all", pixelnum_all)
 
@@ -189,6 +190,7 @@ def XAI_evaluate_cifar(net_x,files, path, showimg,p,device, XAI_labels,classes):
 def XAI_evaluate_with_global_masks(local_model, 
                                    test_files_list, 
                                    path, 
+                                   dataset_name,
                                    device, 
                                    XAI_labels, 
                                    classes, 
@@ -199,7 +201,8 @@ def XAI_evaluate_with_global_masks(local_model,
                                    compare_sever_client_masks=0, 
                                    global_model=None, 
                                    batch_size=1,
-                                   output_path="./"):
+                                   output_path="./",
+                                   verbose=1):
     """     重写XAI_evaluate，使其能够根据global model产生mask，从而实现global model和local model产生的mask进行对比
     
     与原始XAI_evaluate之间的差别：
@@ -238,29 +241,46 @@ def XAI_evaluate_with_global_masks(local_model,
     image_masks_by_human = []
     for im_idx in range(len(test_files_list_jpg)):
         im_name = test_files_list_jpg[im_idx]
-        print(str(Path(path)/im_name))
-        im_asset=read_image(str(Path(path)/im_name))
+        if verbose == 1:
+            print(str(Path(path)/im_name))
         
-        original_image_asset = fn.resize(im_asset, size=[32,32])/255
+        if dataset_name == "cifar10":
+            dataset_size = 32
+            normalize_mean = [0.4914, 0.4822, 0.4465]
+            normalize_std = [0.2023, 0.1994, 0.2010]
+            mode = torchvision.io.image.ImageReadMode.RGB
+        elif dataset_name == "MNIST":
+            dataset_size = 28
+            normalize_mean = [0.5]
+            normalize_std = [0.5]
+            mode = torchvision.io.image.ImageReadMode.GRAY
+        else:
+            raise ValueError("dataset_name有误。")
+        
+        im_asset=read_image(str(Path(path)/im_name), mode=mode)
+        original_image_asset = fn.resize(im_asset, size=[dataset_size,dataset_size])/255
         
         input_asset=torch.tensor(original_image_asset.unsqueeze(0).cpu().detach().numpy())
         input_asset.requires_grad = True
         
-        input_asset_norm=fn.normalize(input_asset, mean=[0.4914, 0.4822, 0.4465], std=[0.2023, 0.1994, 0.2010]) #归一化，用来参与计算
-        test_images.append((input_asset_norm,XAI_labels[im_idx]))
+        input_asset_norm=fn.normalize(input_asset, mean=normalize_mean, std=normalize_std) #归一化，用来参与计算
+        test_images.append((input_asset_norm.squeeze(dim=0),XAI_labels[im_idx]))
         
         npimg = original_image_asset.numpy()     # unnormalize，用来直接输出原图
         npimg_list.append(npimg)
         
         mask_im_name = im_name[:-4]+'_mask.png'
-        print("mask_im_name",mask_im_name)
+        if verbose == 1:
+            print("mask_im_name",mask_im_name)
         truth_mask_tensor = read_image(str(Path(path)/mask_im_name),mode=torchvision.io.image.ImageReadMode.RGB)
         truth_mask = cv2.imread(str(Path(path)/mask_im_name),cv2.IMREAD_GRAYSCALE)
-        truth_mask_np=truth_mask_tensor.numpy()
+        truth_mask_np=truth_mask_tensor.numpy()         #为什么是3通道？？？？？？？？？
         
-        image_masks_by_human.append((im_name, truth_mask_np, truth_mask))
+        image_masks_by_human.append((im_name, truth_mask_np, truth_mask))       #貌似truth_mask_np用不上？？？？？？？？？
         
-    test_images_dataloader = DataLoader(DatasetSplit(test_images, [i for i in range(len(test_files_list_jpg))]), batch_size=batch_size, shuffle=False)
+    test_images_dataloader = DataLoader(DatasetSplit(test_images, [i for i in range(len(test_files_list_jpg))]), 
+                                        batch_size=batch_size, 
+                                        shuffle=False)
     
     if compare_sever_client_masks == 1:
         test_images_masks_by_local_model = generate_dataset_mask(local_model, 
@@ -294,37 +314,40 @@ def XAI_evaluate_with_global_masks(local_model,
         
         output_asset = local_model(input_asset_norm)
         _, predicted_asset = torch.max(output_asset, 1)
-        print("predicted_asset",classes[predicted_asset[0]],"Truth", classes[XAI_labels[int(im_name[:-4])-1]])
+        
 
         for i in range(examples_num):   #分别处理每一个样本
+            if verbose == 1:
+                print("predicted_asset",classes[predicted_asset[i]],"Truth", classes[labels[i]])
             example_index_in_all = batch_idx * test_images_dataloader.batch_size + i
-            print("example index:", example_index_in_all)
-            pixelnum_all=np.count_nonzero(truth_mask_np[example_index_in_all],axis=0)
-            print("pixelnum_all", pixelnum_all)
+            if verbose == 1:
+                print("example index:", example_index_in_all)
+            pixelnum_all=np.count_nonzero(image_masks_by_human[example_index_in_all][2])
+            if verbose == 1:
+                print("pixelnum_all", pixelnum_all)
 
             #the 2nd parameter can be input_asset or input_asset_norm, input_asset_norm will show better ACC in XAI
             attr_ig_nt = attribute_image_features(local_model,
                                                 nt, 
-                                                input_asset_norm,
+                                                input_asset_norm[i].unsqueeze(0),
                                                 truth=XAI_labels[int(image_masks_by_human[example_index_in_all][0][:-4])-1], 
-                                                label=predicted_asset[example_index_in_all][0], 
-                                                baselines=input_asset_norm * 0, 
+                                                label=predicted_asset[example_index_in_all], 
+                                                baselines=input_asset_norm[i].unsqueeze(0) * 0, 
                                                 nt_type='smoothgrad_sq',  
-                                                nt_samples=50, 
-                                                n_step=50, 
+                                                nt_samples=nt_samples, 
+                                                n_steps=n_steps, 
                                                 stdevs=0.2)
             attr_ig_nt = np.transpose(attr_ig_nt.squeeze(0).cpu().detach().numpy(), (1, 2, 0))
             
             #计算二值化masks
-            topk=0.6
+
             attr_combined = np.sum(attr_ig_nt, axis=2)/3
             # attr_combined = np.abs(attr_combined)
             attr_combined_flatten_sorted = np.sort(attr_combined.flatten())
-            attr_combined_flatten_sorted = (attr_combined_flatten_sorted-np.min(attr_combined_flatten_sorted))/(np.max(attr_combined_flatten_sorted)-np.min(attr_combined_flatten_sorted))      #进行归一化操作。
             threshold_idx = math.ceil(topk * attr_combined_flatten_sorted.shape[0])
             threshold = attr_combined_flatten_sorted[attr_combined_flatten_sorted.shape[0] - threshold_idx]
             
-            attr_hard_masks = (attr_combined > threshold).astype(float)
+            attr_hard_masks = (attr_combined >= threshold).astype(float)
 
             truth_mask = image_masks_by_human[example_index_in_all][2]
             masked = cv2.add(attr_hard_masks, np.zeros(np.shape(attr_hard_masks), dtype=float), mask=truth_mask) 
@@ -332,11 +355,13 @@ def XAI_evaluate_with_global_masks(local_model,
 
             inmask_pixelnum=np.count_nonzero(masked)
             inmask_percent=inmask_pixelnum/pixelnum_all
-            print("in mask pixelnum", inmask_pixelnum,pixelnum_all,inmask_percent)
+            if verbose == 1:
+                print("in mask pixelnum", inmask_pixelnum,pixelnum_all,inmask_percent)
             XAI_inmask_list.append(inmask_percent)
             out_pixelnum=np.count_nonzero(out_mask)
-            outmask_percent=out_pixelnum/(3*32*32-pixelnum_all)
-            print("out mask pixelnum", out_pixelnum,3*32*32-pixelnum_all, outmask_percent)
+            outmask_percent=out_pixelnum/(32*32-pixelnum_all)
+            if verbose == 1:
+                print("out mask pixelnum", out_pixelnum,32*32-pixelnum_all, outmask_percent)
             XAI_outmask_list.append(outmask_percent)
 
             if inmask_percent > outmask_percent + margin:
@@ -372,15 +397,17 @@ def XAI_evaluate_with_global_masks(local_model,
                 attr_mask.axis('off')
                 attr_outmask.axis('off')
                 orig.imshow(np.transpose(npimg_list[example_index_in_all], (1, 2, 0)))
-                local_mask_.imshow(np.transpose(test_images_masks_by_local_model[example_index_in_all].cpu().data.numpy(), (1, 2, 0)))
-                global_mask_.imshow(np.transpose(test_images_masks_by_global_model[example_index_in_all].cpu().data.numpy(), (1, 2, 0)))
+                local_mask_.imshow(test_images_masks_by_local_model[example_index_in_all][0].cpu().data.numpy())
+                global_mask_.imshow(test_images_masks_by_global_model[example_index_in_all][0].cpu().data.numpy())
                 fig.savefig(output_path+image_masks_by_human[example_index_in_all][0][:-4]+"_compare_global_local.jpg")
             
+            plt.close()
 
             
     in_mask_acc_mean = mean(XAI_inmask_list)
     out_mask_acc_mean = mean(XAI_outmask_list)
-    print("in_mask_acc_mean",in_mask_acc_mean,"out_mask_acc_mean",out_mask_acc_mean,"XAI ACC", correct/i)
+    if verbose == 1:
+        print("in_mask_acc_mean",in_mask_acc_mean,"out_mask_acc_mean",out_mask_acc_mean,"XAI ACC", correct/i)
     return in_mask_acc_mean,out_mask_acc_mean,correct/i
 
 

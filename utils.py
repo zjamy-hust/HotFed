@@ -94,7 +94,7 @@ def average_weights(w,selected_list):
     w_avg = copy.deepcopy(w[selected_list[0]])
     for key in w_avg.keys():
         # for i in range(1, len(w)):
-        for i in selected_list:
+        for i in selected_list[1:]:
             w_avg[key] += w[i][key]
         w_avg[key] = torch.div(w_avg[key], len(w))
     return w_avg
