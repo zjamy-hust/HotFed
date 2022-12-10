@@ -319,7 +319,7 @@ if __name__ == '__main__':
                                                                                         global_model=global_model,
                                                                                         batch_size=args.XAI_evaluate_batch_size,
                                                                                         output_path="./res/",
-                                                                                        verbose=1)
+                                                                                        verbose=0)
                 logger.add_scalar(f"user{idx}_XAI_ACC", XAI_ACC, epoch)
                 logger.add_scalar(f"user{idx}_in_mask_acc_mean", in_mask_acc_mean, epoch)
                 local_XAI_acc_list.append((idx,XAI_ACC))
