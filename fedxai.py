@@ -128,7 +128,6 @@ if __name__ == '__main__':
         with open(assetpath+"/labels.txt",'r') as f:
             read_res = f.readlines()
             XAI_labels = [int(line[:-1]) for line in read_res]
-        XAI_labels = XAI_labels[:]        #测试语句
 
         print("assetpath",assetpath)
         files = os.listdir(assetpath)    
