@@ -19,7 +19,7 @@ def args_parser():
                         help="the number of local epochs: E")
     parser.add_argument('--local_bs', type=int, default=128,
                         help="local batch size: B")
-    parser.add_argument('--lr', type=float, default=0.01,
+    parser.add_argument('--lr', type=float, default=0.1,
                         help='learning rate')
     parser.add_argument('--optimizer', type=str, default='sgd', help="type \
                         of optimizer")
