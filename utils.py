@@ -94,9 +94,9 @@ def average_weights(w,selected_list):
     w_avg = copy.deepcopy(w[selected_list[0]])
     for key in w_avg.keys():
         # for i in range(1, len(w)):
-        for i in selected_list:
+        for i in selected_list[1:]:
             w_avg[key] += w[i][key]
-        w_avg[key] = torch.div(w_avg[key], len(w))
+        w_avg[key] = torch.div(w_avg[key], len(selected_list))
     return w_avg
 
 def weights_norm_2L_regularization(global_model_dict, local_model_dict):
