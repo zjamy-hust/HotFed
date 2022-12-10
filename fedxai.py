@@ -139,7 +139,7 @@ if __name__ == '__main__':
     elif args.model == 'shufflenetv2':
         global_model = ShuffleNetV2(1)
     elif args.model == 'resnext':
-        global_model = resnext(cardinality=8,num_classes=100,depth=29,widen_factor=4,dropRate=0)
+        global_model = resnext(cardinality=8,num_classes=10,depth=29,widen_factor=4,dropRate=0)
     else:
         exit('Error: unrecognized model')
 
