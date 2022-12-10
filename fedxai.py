@@ -112,8 +112,8 @@ if __name__ == '__main__':
             # print(len(user_groups[j]))
             log.logger.debug(f"    user_groups['{j}'] '{len(user_groups[j])}'")
 
+    asset_path='assets'
     if args.dataset == "cifar10":
-        asset_path='assets'
         classes = ('plane', 'car', 'bird', 'cat',
             'deer', 'dog', 'frog', 'horse', 'ship', 'truck')
         # classes = ('plane' 0, 'car' 1, 'bird' 2, 'cat' 3,
@@ -123,16 +123,13 @@ if __name__ == '__main__':
         print("assetpath",assetpath)
         files = os.listdir(assetpath)        
     elif args.dataset == "MNIST":
-        asset_path='./mnist_asset/'
         classes = ('0', '1', '2', '3', '4', '5', '6', '7', '8', '9')
-        
-        with open(asset_path+"labels.txt",'r') as f:
+        assetpath = str(Path(asset_path)/'mnist_asset')
+        with open(assetpath+"/labels.txt",'r') as f:
             read_res = f.readlines()
             XAI_labels = [int(line[:-1]) for line in read_res]
-            
-        XAI_labels = XAI_labels[:40]        #测试语句    
-        
-        assetpath = str(Path(asset_path)/'mnist_asset')
+        XAI_labels = XAI_labels[:]        #测试语句
+
         print("assetpath",assetpath)
         files = os.listdir(assetpath)    
     
