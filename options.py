@@ -46,7 +46,7 @@ def args_parser():
     # parser.add_argument('--comparing_shared', type=int, default=0, help='comparing shared or not')
     parser.add_argument('--shared_data', type=float, default=0, help='using shared data or not')
     parser.add_argument('--partition', type=str, default='hetero-dir', help='homo, hetero-dir ')
-    parser.add_argument('--compare_sever_client_masks', type=int, default=1, help='XAI评估时，是否对比global和local生成的mask。')
+    parser.add_argument('--compare_sever_client_masks', type=int, default=0, help='XAI评估时，是否对比global和local生成的mask。')
     
     parser.add_argument('--XAI_evaluate_batch_size', type=int, default=2000,help="XAI_evaluate过程中，一次计算的样本数量。")
     parser.add_argument('--XAI_evaluate_nt_samples', type=int, default=1,help="XAI_evaluate过程中，可解释算法采样的数量。")
