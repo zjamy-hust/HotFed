@@ -127,10 +127,10 @@ if __name__ == '__main__':
         assetpath = str(Path(asset_path)/'mnist_asset')
         with open(assetpath+"/labels.txt",'r') as f:
             read_res = f.readlines()
-            XAI_labels = [int(line[:-1]) for line in read_res]
-
+            XAI_labels = [int(line[:]) for line in read_res]
+        print("XAI labels", XAI_labels)
         print("assetpath",assetpath)
-        files = os.listdir(assetpath)    
+        files = os.listdir(assetpath)
     
     
     # BUILD MODEL
@@ -293,7 +293,7 @@ if __name__ == '__main__':
                                                         nt_samples=args.test_mask_nt_samples,
                                                         n_steps=args.test_mask_n_steps,
                                                         device=device,
-                                                        topk = 0.5)     #其实这个东西可以是服务器随着测试集发送过来。，因此放到遍历客户端的for循环之外，只执行1次即可
+                                                        topk = 0.3)     #其实这个东西可以是服务器随着测试集发送过来。，因此放到遍历客户端的for循环之外，只执行1次即可
                 
                 local_test_acc, local_test_loss =  test_inference_with_mask(args, model=copy.deepcopy(lw), test_dataset=test_dataset, test_masks=test_masks)
             

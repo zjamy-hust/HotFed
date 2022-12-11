@@ -24,7 +24,7 @@ def args_parser():
     parser.add_argument('--optimizer', type=str, default='sgd', help="type \
                         of optimizer")
     parser.add_argument('--momentum', type=float, default=0.9,
-                        help='SGD momentum (default: 0.5)')
+                        help='SGD momentum (default: 0.9)')
     parser.add_argument('--stopping_rounds', type=int, default=20,
                         help='rounds of early stopping')
 
@@ -48,8 +48,8 @@ def args_parser():
     parser.add_argument('--partition', type=str, default='hetero-dir', help='homo, hetero-dir ')
     parser.add_argument('--compare_sever_client_masks', type=int, default=0, help='XAI评估时，是否对比global和local生成的mask。')
     
-    parser.add_argument('--XAI_evaluate_batch_size', type=int, default=2000,help="XAI_evaluate过程中，一次计算的样本数量。")
-    parser.add_argument('--XAI_evaluate_nt_samples', type=int, default=1,help="XAI_evaluate过程中，可解释算法采样的数量。")
+    parser.add_argument('--XAI_evaluate_batch_size', type=int, default=32,help="XAI_evaluate过程中，一次计算的样本数量。")
+    parser.add_argument('--XAI_evaluate_nt_samples', type=int, default=2,help="XAI_evaluate过程中，可解释算法采样的数量。")
     parser.add_argument('--XAI_evaluate_n_steps', type=int, default=1,help="XAI_evaluate过程中，，一个样本step数量。")
     parser.add_argument('--mode', type=int, default=3,
                         help='[0,1,2,3,4]。0表示FedAvg； \

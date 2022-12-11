@@ -59,7 +59,7 @@ asset_path='assets'
 #     threshold_id = np.where(cum_sums >= cum_sums[-1] * 0.01 * percentile)[0][0]
 #     return sorted_vals[threshold_id]
 
-def attribute_image_features(net, algorithm, input,truth, label, **kwargs):
+def attribute_image_features(net, algorithm, input,truth, **kwargs):
     net.zero_grad()
     tensor_attributions = algorithm.attribute(input,
                                               target=truth,
@@ -124,7 +124,6 @@ def XAI_evaluate(net_x,files, path, showimg,p,device, XAI_labels,classes):
                                                   nt, 
                                                   input_asset_norm,
                                                   truth=XAI_labels[int(im_name[:-4])-1], 
-                                                  label=predicted_asset[0], 
                                                   baselines=input_asset * 0, 
                                                   nt_type='smoothgrad_sq', 
                                                   nt_samples=50, 
@@ -133,7 +132,7 @@ def XAI_evaluate(net_x,files, path, showimg,p,device, XAI_labels,classes):
             attr_ig_nt = np.transpose(attr_ig_nt.squeeze(0).cpu().detach().numpy(), (1, 2, 0))
             
             #计算二值化masks
-            topk=0.6
+            topk=0.3
             attr_combined = np.sum(attr_ig_nt, axis=2)/3
             # attr_combined = np.abs(attr_combined)
             attr_combined_flatten_sorted = np.sort(attr_combined.flatten())
@@ -251,8 +250,8 @@ def XAI_evaluate_with_global_masks(local_model,
             mode = torchvision.io.image.ImageReadMode.RGB
         elif dataset_name == "MNIST":
             dataset_size = 28
-            normalize_mean = [0.5]
-            normalize_std = [0.5]
+            normalize_mean = [0.4914]
+            normalize_std = [0.2023]
             mode = torchvision.io.image.ImageReadMode.GRAY
         else:
             raise ValueError("dataset_name有误。")
@@ -272,7 +271,7 @@ def XAI_evaluate_with_global_masks(local_model,
         mask_im_name = im_name[:-4]+'_mask.png'
         if verbose == 1:
             print("mask_im_name",mask_im_name)
-        truth_mask_tensor = read_image(str(Path(path)/mask_im_name),mode=torchvision.io.image.ImageReadMode.RGB)
+        truth_mask_tensor = read_image(str(Path(path)/mask_im_name),mode)
         truth_mask = cv2.imread(str(Path(path)/mask_im_name),cv2.IMREAD_GRAYSCALE)
         truth_mask_np=truth_mask_tensor.numpy()         #为什么是3通道？？？？？？？？？
         
@@ -331,7 +330,6 @@ def XAI_evaluate_with_global_masks(local_model,
                                                 nt, 
                                                 input_asset_norm[i].unsqueeze(0),
                                                 truth=XAI_labels[int(image_masks_by_human[example_index_in_all][0][:-4])-1], 
-                                                label=predicted_asset[example_index_in_all], 
                                                 baselines=input_asset_norm[i].unsqueeze(0) * 0, 
                                                 nt_type='smoothgrad_sq',  
                                                 nt_samples=nt_samples, 

@@ -39,10 +39,10 @@ def get_dataset(args):
              transforms.RandomGrayscale(),
              transforms.ToTensor(),
              transforms.RandomCrop(28, padding=4), 
-             transforms.Normalize([0.5], [0.5])])
+             transforms.Normalize([0.4914], [0.2023])])
     mnist_apply_transform = transforms.Compose(
             [transforms.ToTensor(), 
-             transforms.Normalize([0.5], [0.5])])
+             transforms.Normalize([0.4914], [0.2023])])
 
     if args.dataset == 'cifar10':
         train_dataset = datasets.CIFAR10(data_dir, train=True, download=True,
