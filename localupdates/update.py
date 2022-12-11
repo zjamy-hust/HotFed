@@ -410,9 +410,10 @@ def test_inference(args, model, test_dataset):
     criterion = nn.CrossEntropyLoss().to(device)
     testloader = DataLoader(DatasetSplit(test_dataset,[i for i in range(len(test_dataset))]), batch_size=128,
                             shuffle=False)
-
+    batch_num = 0
     with torch.no_grad():
         for batch_idx, (images, labels, idxs) in enumerate(testloader):
+            batch_num += 1
             images, labels = images.to(device), labels.to(device)
             model.zero_grad()
     
@@ -428,6 +429,7 @@ def test_inference(args, model, test_dataset):
             total += len(labels)
     
     accuracy = correct/total
+    loss = loss/batch_num
     if accuracy > best_global_acc:
             # print('Saving..')
             # state = {
