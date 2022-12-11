@@ -291,6 +291,7 @@ class LocalUpdate(object):
         loss_epochs=0
         for iter in range(self.args.local_ep):
             is_best = 0
+            a_loss_max,b_loss_max = 1,1
             batch_loss = []
             model.train()
             
@@ -317,8 +318,13 @@ class LocalUpdate(object):
                 
                 #进行不带mask的前向过程
                 log_probs = model(images)
-                
-                loss = self.criterion(log_probs_with_masks, labels) + mse_loss_lambda * F.mse_loss(log_probs_with_masks,log_probs.detach())   #只回传一次梯度。
+                a_loss = self.criterion(log_probs, labels)
+                b_loss = F.mse_loss(log_probs_with_masks,log_probs.detach())
+                if a_loss.item() > a_loss_max:
+                    a_loss_max = a_loss.item()
+                if b_loss.item() > b_loss_max:
+                    b_loss_max = b_loss.item()
+                loss = 0.5*a_loss + 0.5*mse_loss_lambda* (a_loss_max/b_loss_max) * b_loss   #只回传一次梯度。
                 
                 # optimizer.zero_grad()
                 loss.backward()
