@@ -171,6 +171,7 @@ class LocalUpdate(object):
         loss_epochs=0
         for iter in range(self.args.local_ep):
             is_best = 0
+            a_loss_max,b_loss_max = 1,1
             batch_loss = []
             model.train()
             
@@ -179,7 +180,13 @@ class LocalUpdate(object):
                 # print(len(images), len(labels))
                 model.zero_grad()
                 log_probs = model(images)
-                loss = self.criterion(log_probs, labels) + weights_norm_2L_regularization(global_model.state_dict(), model.state_dict())
+                a_loss = self.criterion(log_probs, labels)
+                b_loss = weights_norm_2L_regularization(global_model.state_dict(), model.state_dict())
+                if a_loss.item() > a_loss_max:
+                    a_loss_max = a_loss.item()
+                if b_loss.item() > b_loss_max:
+                    b_loss_max = b_loss.item()
+                loss = 0.5*a_loss + 0.5*b_loss*(a_loss_max/b_loss_max)
                 # optimizer.zero_grad()
                 loss.backward()
                
