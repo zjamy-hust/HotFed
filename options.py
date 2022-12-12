@@ -51,7 +51,7 @@ def args_parser():
     parser.add_argument('--XAI_evaluate_batch_size', type=int, default=32,help="XAI_evaluate过程中，一次计算的样本数量。")
     parser.add_argument('--XAI_evaluate_nt_samples', type=int, default=2,help="XAI_evaluate过程中，可解释算法采样的数量。")
     parser.add_argument('--XAI_evaluate_n_steps', type=int, default=1,help="XAI_evaluate过程中，，一个样本step数量。")
-    parser.add_argument('--mode', type=int, default=3,
+    parser.add_argument('--mode', type=int, default=0,
                         help='[0,1,2,3,4]。0表示FedAvg； \
                                     1表示data augmentation训练，训练前，利用server model和trainning dataset生成mask，训练时进行一次原始样本训练+一次带mask训练，测试时计算acc+XAI Acc（暂时如此）；\
                                     2表示仅测试时采用mask，然后通过acc筛选客户端，测试前会通过server model和testing dataset产生mask；\
@@ -61,8 +61,8 @@ def args_parser():
     
     #mode == 1需要关注的参数
     parser.add_argument('--mode1_start_epoch', type=int, default=1,help="data augmentation需要跳过前面几轮再执行。")
-    parser.add_argument('--train_mask_batch_size', type=int, default=2000,help="生成训练集mask，一次计算的mask数量。")
-    parser.add_argument('--train_mask_nt_samples', type=int, default=1,help="IG算法，一个样本采样的次数。")
+    parser.add_argument('--train_mask_batch_size', type=int, default=32,help="生成训练集mask，一次计算的mask数量。")
+    parser.add_argument('--train_mask_nt_samples', type=int, default=2,help="IG算法，一个样本采样的次数。")
     parser.add_argument('--train_mask_n_steps', type=int, default=1,help="IG算法，一个样本step数量。")
     
     #mode == 2需要关注的参数
@@ -72,11 +72,14 @@ def args_parser():
     parser.add_argument('--test_mask_n_steps', type=int, default=1,help="IG算法，一个样本step数量。")
      
     #mode == 3需要关注的参数 
-    parser.add_argument('--mse_loss_lambda', type=float, default=1,help="mode 3中两个预测结果近似程度正则化项的系数。")
     parser.add_argument('--mode3_train_mask_batch_size', type=int, default=1000,help="生成训练集mask，一次计算的mask数量。")
     parser.add_argument('--mode3_train_mask_nt_samples', type=int, default=1,help="IG算法，一个样本采样的次数。")
     parser.add_argument('--mode3_train_mask_n_steps', type=int, default=1,help="IG算法，一个样本step数量。")
      
+    #mode == 3 4 需要关注的参数 
+    parser.add_argument('--mse_loss_lambda', type=float, default=0.01,help="mode 3 4中两个预测结果近似程度正则化项的系数。")
+    parser.add_argument('--mapping', type=int, default=0,help="mode 3 4中两个预测结果近似程度正则化项的系数。")
+    parser.add_argument('--topk', type=float, default=0.3,help="mode 3 4中两个预测结果近似程度正则化项的系数。")
     parser.add_argument('--verbose', type=int, default=1, help='verbose')
     
     parser.add_argument('--random_seed', type=int, default=40212202)

@@ -262,7 +262,7 @@ if __name__ == '__main__':
                                                         nt_samples=args.train_mask_nt_samples,
                                                         n_steps=args.train_mask_n_steps,
                                                         device=device,
-                                                        topk = 0.5)          #速度比较慢、占用空间比较大？？？？？？？？？？？？
+                                                        topk = args.topk)          #速度比较慢、占用空间比较大？？？？？？？？？？？？
                     w, loss, lw  = local_model.update_weights_augmentation(
                         model=local_init_model, global_round=epoch, user=idx, train_masks = train_masks) 
             elif args.mode == 4:        #执行FedProx
@@ -276,8 +276,9 @@ if __name__ == '__main__':
                                                                                   train_mask_batch_size=args.mode3_train_mask_batch_size,
                                                                                   train_mask_nt_samples=args.mode3_train_mask_nt_samples,
                                                                                   train_mask_n_steps=args.mode3_train_mask_n_steps,
-                                                                                  topk=0.5,
-                                                                                  mse_loss_lambda=args.mse_loss_lambda)
+                                                                                  topk=args.topk,
+                                                                                  mse_loss_lambda=args.mse_loss_lambda,
+                                                                                  mapping = args.mapping)
             else:
                 raise ValueError("args.mode有误。")
             
@@ -293,7 +294,7 @@ if __name__ == '__main__':
                                                         nt_samples=args.test_mask_nt_samples,
                                                         n_steps=args.test_mask_n_steps,
                                                         device=device,
-                                                        topk = 0.3)     #其实这个东西可以是服务器随着测试集发送过来。，因此放到遍历客户端的for循环之外，只执行1次即可
+                                                        topk = args.topk)     #其实这个东西可以是服务器随着测试集发送过来。，因此放到遍历客户端的for循环之外，只执行1次即可
                 
                 local_test_acc, local_test_loss =  test_inference_with_mask(args, model=copy.deepcopy(lw), test_dataset=test_dataset, test_masks=test_masks)
             
@@ -314,6 +315,7 @@ if __name__ == '__main__':
                                                                                         nt_samples=args.XAI_evaluate_nt_samples,   #测试数值
                                                                                         n_steps=args.XAI_evaluate_n_steps,      #测试数值
                                                                                         margin=0.1,     #in_mask和out_mask之间的差距
+                                                                                        topk=args.topk,
                                                                                         compare_sever_client_masks=True if args.compare_sever_client_masks == 1 else 0,
                                                                                         global_model=global_model,
                                                                                         batch_size=args.XAI_evaluate_batch_size,
@@ -374,13 +376,6 @@ if __name__ == '__main__':
         # Calculate avg training accuracy over all users at every epoch
         list_acc, list_loss = [], []
         global_model.eval()
-        for c in range(args.num_users):
-            local_model = LocalUpdate(args=args, dataset=train_dataset,
-                                      idxs=user_groups[c], logger=logger)
-            acc, loss, _ = local_model.inference(model=global_model,global_round=1000,user=c)
-            list_acc.append(acc)
-            list_loss.append(loss)
-        train_accuracy.append(sum(list_acc)/len(list_acc))
 
         # print global training loss after every 'i' rounds
         test_acc, test_loss =  test_inference(args, global_model, test_dataset)
