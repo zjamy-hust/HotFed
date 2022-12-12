@@ -77,9 +77,9 @@ def args_parser():
     parser.add_argument('--mode3_train_mask_n_steps', type=int, default=1,help="IG算法，一个样本step数量。")
      
     #mode == 3 4 需要关注的参数 
-    parser.add_argument('--mse_loss_lambda', type=float, default=0.01,help="mode 3 4中两个预测结果近似程度正则化项的系数。")
-    parser.add_argument('--mapping', type=int, default=0,help="mode 3 4中两个预测结果近似程度正则化项的系数。")
-    parser.add_argument('--topk', type=float, default=0.3,help="mode 3 4中两个预测结果近似程度正则化项的系数。")
+    parser.add_argument('--mse_loss_lambda', type=float, default=0.01,help="")
+    parser.add_argument('--mapping', type=int, default=0,help="")
+    parser.add_argument('--topk', type=float, default=0.3,help="")
     parser.add_argument('--verbose', type=int, default=1, help='verbose')
     
     parser.add_argument('--random_seed', type=int, default=40212202)

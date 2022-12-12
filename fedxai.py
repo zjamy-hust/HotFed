@@ -389,6 +389,7 @@ if __name__ == '__main__':
                                                                                         nt_samples=args.XAI_evaluate_nt_samples,   #测试数值
                                                                                         n_steps=args.XAI_evaluate_n_steps,      #测试数值
                                                                                         margin=0.1,     #in_mask和out_mask之间的差距
+                                                                                        topk=args.topk,
                                                                                         compare_sever_client_masks=True if args.compare_sever_client_masks == 1 else 0,
                                                                                         global_model=global_model,
                                                                                         batch_size=args.XAI_evaluate_batch_size,
@@ -414,8 +415,6 @@ if __name__ == '__main__':
             log.logger.debug(f' \nAvg Training Stats after {epoch+1} global rounds:')
             print(f'Training Loss : {np.mean(np.array(train_loss))}')
             log.logger.debug(f'Training Loss : {np.mean(np.array(train_loss))}')
-            print('Train Accuracy: {:.2f}% '.format(100*train_accuracy[-1]))
-            log.logger.debug('Train Accuracy: {:.2f}% '.format(100*train_accuracy[-1]))
             print('Test Accuracy: {:.2f}% '.format(100*test_acc))
             log.logger.debug('Test Accuracy: {:.2f}% '.format(100*test_acc))
             print('Best Test Accuracy: {:.2f}% \n'.format(100*best_test_acc))
@@ -438,8 +437,6 @@ if __name__ == '__main__':
 
     print(f' \n Results after {args.epochs} global rounds of training:')
     log.logger.debug(f' \n Results after {args.epochs} global rounds of training:')
-    print("|---- Avg Train Accuracy: {:.2f}%".format(100*train_accuracy[-1]))
-    log.logger.debug("|---- Avg Train Accuracy: {:.2f}%".format(100*train_accuracy[-1]))
     print("|---- Test Accuracy: {:.2f}%".format(100*test_acc))
     log.logger.debug("|---- Test Accuracy: {:.2f}%".format(100*test_acc))
 
