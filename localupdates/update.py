@@ -273,7 +273,7 @@ class LocalUpdate(object):
 
         return best_model.state_dict(), sum(best_epoch_loss) / len(best_epoch_loss), best_model
 
-    def update_weights_augmentation_similarity(self, model, device, global_round, user, train_mask_batch_size, train_mask_nt_samples, train_mask_n_steps, topk, mse_loss_lambda):
+    def update_weights_augmentation_similarity(self, model, device, global_round, user, train_mask_batch_size, train_mask_nt_samples, train_mask_n_steps, topk, mse_loss_lambda,mapping):
         # Set mode to train model
         epoch_loss = []
 
@@ -324,7 +324,12 @@ class LocalUpdate(object):
                     a_loss_max = a_loss.item()
                 if b_loss.item() > b_loss_max:
                     b_loss_max = b_loss.item()
-                loss = 0.5*a_loss + 0.5*mse_loss_lambda* (a_loss_max/b_loss_max) * b_loss   #只回传一次梯度。
+                if ( mapping == 1) :
+                    rate = (a_loss_max/b_loss_max)
+                else:
+                    rate = mse_loss_lambda
+
+                loss = a_loss + rate * b_loss   #只回传一次梯度。
                 
                 # optimizer.zero_grad()
                 loss.backward()
@@ -351,7 +356,7 @@ class LocalUpdate(object):
 
     
     
-def generate_dataset_mask(local_init_model, dataset, idxs, batch_size, nt_samples, n_steps, device, topk=0.5):   
+def generate_dataset_mask(local_init_model, dataset, idxs, batch_size, nt_samples, n_steps, device, topk):
     """
     利用服务器发来的模型产生mask
     

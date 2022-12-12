@@ -196,7 +196,7 @@ def XAI_evaluate_with_global_masks(local_model,
                                    nt_samples, 
                                    n_steps, 
                                    margin, 
-                                   topk=0.5, 
+                                   topk, 
                                    compare_sever_client_masks=0, 
                                    global_model=None, 
                                    batch_size=1,
@@ -398,15 +398,14 @@ def XAI_evaluate_with_global_masks(local_model,
                 local_mask_.imshow(test_images_masks_by_local_model[example_index_in_all][0].cpu().data.numpy())
                 global_mask_.imshow(test_images_masks_by_global_model[example_index_in_all][0].cpu().data.numpy())
                 fig.savefig(output_path+image_masks_by_human[example_index_in_all][0][:-4]+"_compare_global_local.jpg")
-            
             plt.close()
 
             
     in_mask_acc_mean = mean(XAI_inmask_list)
     out_mask_acc_mean = mean(XAI_outmask_list)
     if verbose == 1:
-        print("in_mask_acc_mean",in_mask_acc_mean,"out_mask_acc_mean",out_mask_acc_mean,"XAI ACC", correct/i)
-    return in_mask_acc_mean,out_mask_acc_mean,correct/i
+        print("in_mask_acc_mean",in_mask_acc_mean,"out_mask_acc_mean",out_mask_acc_mean,"XAI ACC", correct/len(XAI_labels))
+    return in_mask_acc_mean,out_mask_acc_mean,correct/len(XAI_labels)
 
 
 if __name__=="__main__":
