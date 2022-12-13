@@ -352,7 +352,8 @@ if __name__ == '__main__':
         #先计算混合结果，再排序
         #混合acc和XAI进行衡量，此处实现的是平均值？？？？？？？？？？？？？？
         if args.mode in [0,1,3,4]:
-            mean_acc_and_XAI_acc = [(local_test_acc_list[i][0],(local_test_acc_list[i][1]+local_XAI_acc_list[i][1])/2) for i in range(len(local_test_acc_list))]    #计算结果：(idx, (acc+XAI_acc)/2)
+            # mean_acc_and_XAI_acc = [(local_test_acc_list[i][0],(0.8*local_test_acc_list[i][1]+0.2*local_XAI_acc_list[i][1])) for i in range(len(local_test_acc_list))]    #计算结果：(idx, (acc+XAI_acc)/2)
+            mean_acc_and_XAI_acc = [(local_test_acc_list[i][0],local_test_acc_list[i][1]) for i in range(len(local_test_acc_list))]    #计算结果：(idx, (acc+XAI_acc)/2)
             res = sorted(mean_acc_and_XAI_acc, key=itemgetter(1), reverse = True)[:N]
         elif args.mode == 2:
             res = sorted(local_test_acc_list, key=itemgetter(1), reverse = True)[:N]
