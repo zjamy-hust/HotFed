@@ -458,43 +458,43 @@ if __name__ == '__main__':
     # matplotlib.use('Agg')
 
     # Plot Loss curve
-    plt.figure()
-    # plt.title('Training Loss vs Communication rounds')
-    plt.plot(range(len(train_loss)), train_loss, color='r')
-    plt.ylabel('Training loss')
-    plt.xlabel('Communication Rounds')
-    plt.show()
-    plt.savefig('save/fed_{}_{}_{}_iid[{}]_E[{}]_B[{}]_loss.png'.
-                format(args.dataset, args.model, args.epochs,
-                       args.iid, args.local_ep, args.local_bs))
+    # plt.figure()
+    # # plt.title('Training Loss vs Communication rounds')
+    # plt.plot(range(len(train_loss)), train_loss, color='r')
+    # plt.ylabel('Training loss')
+    # plt.xlabel('Communication Rounds')
+    # plt.show()
+    # plt.savefig('save/fed_{}_{}_{}_iid[{}]_E[{}]_B[{}]_loss.png'.
+    #             format(args.dataset, args.model, args.epochs,
+    #                    args.iid, args.local_ep, args.local_bs))
     
-    # Plot Average Accuracy vs Communication rounds
-    plt.figure()
-    # plt.title('Average Accuracy vs Communication rounds')
-    plt.plot(range(len(train_accuracy)), train_accuracy, color='k')
-    plt.ylabel('Average Train Accuracy')
-    plt.xlabel('Communication Rounds')
-    plt.show()
-    plt.savefig('save/fed_{}_{}_{}_iid[{}]_E[{}]_B[{}]_train_acc.png'.
-                format(args.dataset, args.model, args.epochs, 
-                       args.iid, args.local_ep, args.local_bs))
+    # # Plot Average Accuracy vs Communication rounds
+    # plt.figure()
+    # # plt.title('Average Accuracy vs Communication rounds')
+    # plt.plot(range(len(train_accuracy)), train_accuracy, color='k')
+    # plt.ylabel('Average Train Accuracy')
+    # plt.xlabel('Communication Rounds')
+    # plt.show()
+    # plt.savefig('save/fed_{}_{}_{}_iid[{}]_E[{}]_B[{}]_train_acc.png'.
+    #             format(args.dataset, args.model, args.epochs, 
+    #                    args.iid, args.local_ep, args.local_bs))
 
-    # Plot Loss curve
-    plt.figure()
-    # plt.title('Training Loss vs Communication rounds')
-    plt.plot(range(len(test_loss_list)), test_loss_list, color='r')
-    plt.ylabel('Training loss')
-    plt.xlabel('Communication Rounds')
-    plt.show()
-    plt.savefig('save/fed_{}_{}_{}_iid[{}]_E[{}]_B[{}]_loss.png'.
-                format(args.dataset, args.model, args.epochs,
-                       args.iid, args.local_ep, args.local_bs))
-    plt.figure()
-    # plt.title('Average Accuracy vs Communication rounds')
-    plt.plot(range(len(test_acc_list)), test_acc_list, color='k')
-    plt.ylabel('Average Test Accuracy')
-    plt.xlabel('Communication Rounds')
-    plt.show()
-    plt.savefig('save/fed_{}_{}_{}_iid[{}]_E[{}]_B[{}]_test_acc.png'.
-                format(args.dataset, args.model, args.epochs, 
-                       args.iid, args.local_ep, args.local_bs))
+    # # Plot Loss curve
+    # plt.figure()
+    # # plt.title('Training Loss vs Communication rounds')
+    # plt.plot(range(len(test_loss_list)), test_loss_list, color='r')
+    # plt.ylabel('Training loss')
+    # plt.xlabel('Communication Rounds')
+    # plt.show()
+    # plt.savefig('save/fed_{}_{}_{}_iid[{}]_E[{}]_B[{}]_loss.png'.
+    #             format(args.dataset, args.model, args.epochs,
+    #                    args.iid, args.local_ep, args.local_bs))
+    # plt.figure()
+    # # plt.title('Average Accuracy vs Communication rounds')
+    # plt.plot(range(len(test_acc_list)), test_acc_list, color='k')
+    # plt.ylabel('Average Test Accuracy')
+    # plt.xlabel('Communication Rounds')
+    # plt.show()
+    # plt.savefig('save/fed_{}_{}_{}_iid[{}]_E[{}]_B[{}]_test_acc.png'.
+    #             format(args.dataset, args.model, args.epochs, 
+    #                    args.iid, args.local_ep, args.local_bs))
