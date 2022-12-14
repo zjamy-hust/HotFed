@@ -10,7 +10,7 @@
 3、改训练过程。
 4、num_classes改为根据数据集指定。
 """
-
+import gc
 import os
 import copy
 import time
@@ -425,6 +425,7 @@ if __name__ == '__main__':
             print('Global in_mask_acc_mean: {:.2f}% \n'.format(100 * in_mask_acc_mean))
             log.logger.debug('Global in_mask_acc_mean: {:.2f}% \n'.format(100*in_mask_acc_mean))
         scheduler.step()
+        gc.collect()
         
         print("epoch Run Time: ",time.time()-epoch_start_time)
         print("test_loss_list.append",test_loss_list)

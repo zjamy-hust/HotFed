@@ -11,7 +11,7 @@ import torchvision.transforms as transforms
 import torchvision.transforms.functional as fn
 from torchvision import models
 from statistics import mean
-
+import gc
 
 
 from captum.attr import IntegratedGradients
@@ -254,25 +254,25 @@ def XAI_evaluate_with_global_masks(local_model,
                 correct = correct+1
             
             torch.cuda.empty_cache()
-            fig, (orig, mask, attr, attr_mask, attr_outmask) = plt.subplots(1, 5)
-            orig.axis('off')
-            mask.axis('off')
-            attr.axis('off')
-            attr_mask.axis('off')
-            attr_outmask.axis('off')
-            orig.imshow(np.transpose(npimg_list[example_index_in_all], (1, 2, 0)))
-            default_cmap = LinearSegmentedColormap.from_list(
-                "RdWhGn", ["red", "white", "green"]
-            )
-            vmin, vmax = -1, 1
-            attr.imshow(attr_hard_masks,cmap=default_cmap,vmin=vmin,vmax=vmax)
-            mask.imshow(truth_mask,cmap="Blues",vmin=0,vmax=1)
-            attr.imshow(attr_hard_masks,cmap=default_cmap,vmin=vmin,vmax=vmax)
-            mask.imshow(truth_mask,cmap="Blues",vmin=0,vmax=1)
-            attr_mask.imshow(masked,cmap="Greens",vmin=0,vmax=1)
-            attr_outmask.imshow(out_mask,cmap="Reds",vmin=0,vmax=1)
-            fig.show()
-            fig.savefig(output_path+image_masks_by_human[example_index_in_all][0][:-4]+"_result.jpg")
+            # fig, (orig, mask, attr, attr_mask, attr_outmask) = plt.subplots(1, 5)
+            # orig.axis('off')
+            # mask.axis('off')
+            # attr.axis('off')
+            # attr_mask.axis('off')
+            # attr_outmask.axis('off')
+            # orig.imshow(np.transpose(npimg_list[example_index_in_all], (1, 2, 0)))
+            # default_cmap = LinearSegmentedColormap.from_list(
+            #     "RdWhGn", ["red", "white", "green"]
+            # )
+            # vmin, vmax = -1, 1
+            # attr.imshow(attr_hard_masks,cmap=default_cmap,vmin=vmin,vmax=vmax)
+            # mask.imshow(truth_mask,cmap="Blues",vmin=0,vmax=1)
+            # attr.imshow(attr_hard_masks,cmap=default_cmap,vmin=vmin,vmax=vmax)
+            # mask.imshow(truth_mask,cmap="Blues",vmin=0,vmax=1)
+            # attr_mask.imshow(masked,cmap="Greens",vmin=0,vmax=1)
+            # attr_outmask.imshow(out_mask,cmap="Reds",vmin=0,vmax=1)
+            # fig.show()
+            # fig.savefig(output_path+image_masks_by_human[example_index_in_all][0][:-4]+"_result.jpg")
             
             #显示globale和local的mask
             if compare_sever_client_masks == 1:
@@ -291,6 +291,7 @@ def XAI_evaluate_with_global_masks(local_model,
             
     in_mask_acc_mean = mean(XAI_inmask_list)
     out_mask_acc_mean = mean(XAI_outmask_list)
+    gc.collect()
     if verbose == 1:
         print("in_mask_acc_mean",in_mask_acc_mean,"out_mask_acc_mean",out_mask_acc_mean,"XAI ACC", correct/len(XAI_labels))
     return in_mask_acc_mean,out_mask_acc_mean,correct/len(XAI_labels)
