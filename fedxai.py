@@ -3,12 +3,14 @@
 # Python version: 3.6
 
 """
-版本：12月9日-2
+版本：12月15日-1
 修改内容：
-1、增加读取mnist_assets的XAI_evaluate
-2、采用tensorboardX画图
-3、改训练过程。
-4、num_classes改为根据数据集指定。
+1、改mode 0，新增mode 5
+2、实现带权重聚合模型参数
+3、新增mode 6：采用类似rationale的框架，产生attention mask
+4、新增mode 7：开关+attention mask。
+5、新增mode 8：采用rationale框架，产生hard mask
+6、尝试拆分各个模式
 """
 import gc
 import os
@@ -25,10 +27,10 @@ import torch
 from tensorboardX import SummaryWriter
 
 from options import args_parser
-from utils import get_dataset, average_weights, exp_details, save_checkpoint
-from localupdates.update import LocalUpdate, test_inference, test_inference_with_mask, generate_dataset_mask
+from utils import get_dataset, average_weights, exp_details, save_checkpoint, average_weights_for_model_with_global_mask
+from localupdates.update import LocalUpdate, test_inference, test_inference_with_mask, generate_dataset_mask, test_inference_with_global_mask
 from models.models import TestmyNet
-from models.models_resnet import ResNet18
+from models.models_resnet import ResNet18, ResNet18_with_mask
 from models.models_shufflenetv2 import ShuffleNetV2
 from models.models_resnext import resnext
 from operator import itemgetter, attrgetter
@@ -127,10 +129,10 @@ if __name__ == '__main__':
         assetpath = str(Path(asset_path)/'mnist_asset')
         with open(assetpath+"/labels.txt",'r') as f:
             read_res = f.readlines()
-            XAI_labels = [int(line[:]) for line in read_res]
+            XAI_labels = [int(line.strip()) for line in read_res]
         print("XAI labels", XAI_labels)
         print("assetpath",assetpath)
-        files = os.listdir(assetpath)
+        files = os.listdir(assetpath)        
     
     
     # BUILD MODEL
@@ -144,7 +146,10 @@ if __name__ == '__main__':
     if args.model == 'test':
         global_model = TestmyNet()
     elif args.model == 'resnet18':
-        global_model = ResNet18(num_classes, input_channel)
+        if args.mode in [6,7,8]:
+            global_model = ResNet18_with_mask(num_classes, input_channel,True if args.output_hard_mask==1 else False)
+        else:
+            global_model = ResNet18(num_classes, input_channel)
     elif args.model == 'shufflenetv2':
         if args.dataset == "cifar10":
             global_model = ShuffleNetV2(1)      #没有针对mnist数据集，对模型输入参数进行修改
@@ -229,7 +234,7 @@ if __name__ == '__main__':
         args.lr=scheduler.get_last_lr()[0]
         print(f'\n | Global Training Round : {epoch+1} |\n')
         log.logger.debug(f'\n | Global Training Round : {epoch+1} |\n')
-
+        
         # m = max(int(args.frac * args.num_users), 1)
         # idxs_users = np.random.choice(range(args.num_users), m, replace=False)
         start_user = 0
@@ -238,14 +243,16 @@ if __name__ == '__main__':
         local_test_loss_list = []
         local_XAI_acc_list = []
         in_mask_acc_mean_list = []
+        client_dataset_size = {}    #记录client样本数量
         for idx in range(start_user,args.num_users):
             local_model = LocalUpdate(args=args, dataset=train_dataset,
                                       idxs=user_groups[idx], logger=logger)
+            client_dataset_size[idx] = len(user_groups[idx])
             # model=copy.deepcopy(global_model)
             
             local_init_model=copy.deepcopy(global_model)
             
-            if args.mode in [0,2]:  
+            if args.mode in [0,2,5]:  
                 w, loss, lw  = local_model.update_weights(
                     model=local_init_model, global_round=epoch, user=idx)
             elif args.mode == 1:    #进行augumentation计算         
@@ -279,12 +286,15 @@ if __name__ == '__main__':
                                                                                   topk=args.topk,
                                                                                   mse_loss_lambda=args.mse_loss_lambda,
                                                                                   mapping = args.mapping)
+            elif args.mode == 6:
+                w, loss, lw  = local_model.update_weights_with_global_mask(     #
+                    model=local_init_model, global_round=epoch, user=idx)
             else:
                 raise ValueError("args.mode有误。")
             
             #simulate this will happen in the enclave or cloud side
-            if args.mode in [0,1,3,4]:  #只有mode==2才进行给test数据加上mask
-                local_test_acc, local_test_loss =  test_inference(args, model=copy.deepcopy(lw), test_dataset=test_dataset) 
+            if args.mode in [0,1,3,4,5]:  #只有mode==2才进行给test数据加上mask
+                local_test_acc, local_test_loss =  test_inference(args, model=copy.deepcopy(lw), test_dataset=test_dataset)             #这里是在server的test上进行测试，所以ACC不能够用来选择客户端。
             elif args.mode == 2:
                 if epoch < args.mode2_end_epoch:
                     test_masks = generate_dataset_mask(local_init_model,
@@ -295,36 +305,40 @@ if __name__ == '__main__':
                                                         n_steps=args.test_mask_n_steps,
                                                         device=device,
                                                         topk = args.topk)     #其实这个东西可以是服务器随着测试集发送过来。，因此放到遍历客户端的for循环之外，只执行1次即可
-                
                 local_test_acc, local_test_loss =  test_inference_with_mask(args, model=copy.deepcopy(lw), test_dataset=test_dataset, test_masks=test_masks)
+            elif args.mode == 6:
+                local_test_acc, local_test_loss =  test_inference_with_global_mask(
+                    args, model=copy.deepcopy(lw), test_dataset=test_dataset) 
             
             logger.add_scalar(f"user{idx}_test_acc", local_test_acc, epoch)
             local_test_acc_list.append((idx,local_test_acc))
             local_test_loss_list.append((idx,local_test_loss))
 
             ##### add XAI calc here #####           #用一个小的样本集计算出XAI指标之后，如何混合Acc和XAI_Acc？？？？？？？？？？？
-            if args.mode in [0,1,3,4]:  #mode == 2不需要进行该评估
-            # xai_device= (f'cuda:{str(args.gpu-1)}')  if torch.cuda.is_available() else 'cpu'
-                in_mask_acc_mean,out_mask_acc_mean,XAI_ACC=XAI_evaluate_with_global_masks(copy.deepcopy(lw),
-                                                                                        files,
-                                                                                        assetpath,
-                                                                                        dataset_name=args.dataset,
-                                                                                        device=device,
-                                                                                        XAI_labels=XAI_labels,
-                                                                                        classes=classes,
-                                                                                        nt_samples=args.XAI_evaluate_nt_samples,   #测试数值
-                                                                                        n_steps=args.XAI_evaluate_n_steps,      #测试数值
-                                                                                        margin=0.1,     #in_mask和out_mask之间的差距
-                                                                                        topk=args.topk,
-                                                                                        compare_sever_client_masks=True if args.compare_sever_client_masks == 1 else 0,
-                                                                                        global_model=global_model,
-                                                                                        batch_size=args.XAI_evaluate_batch_size,
-                                                                                        output_path="./res/",
-                                                                                        verbose=0)
-                logger.add_scalar(f"user{idx}_XAI_ACC", XAI_ACC, epoch)
-                logger.add_scalar(f"user{idx}_in_mask_acc_mean", in_mask_acc_mean, epoch)
-                local_XAI_acc_list.append((idx,XAI_ACC))
-                in_mask_acc_mean_list.append((idx,in_mask_acc_mean))
+            # if args.mode in [0,1,3,4,5,6]:  #mode == 2不需要进行该评估；mode == 6 能够放在这里，是因为测试过程直接用原始图片进行测试，而不是带mask的图片 
+            # # xai_device= (f'cuda:{str(args.gpu-1)}')  if torch.cuda.is_available() else 'cpu'
+            #     in_mask_acc_mean,out_mask_acc_mean,XAI_ACC=XAI_evaluate_with_global_masks(copy.deepcopy(lw),
+            #                                                                             files,
+            #                                                                             assetpath,
+            #                                                                             dataset_name=args.dataset,
+            #                                                                             device=device,
+            #                                                                             XAI_labels=XAI_labels,
+            #                                                                             classes=classes,
+            #                                                                             nt_samples=args.XAI_evaluate_nt_samples,   #测试数值
+            #                                                                             n_steps=args.XAI_evaluate_n_steps,      #测试数值
+            #                                                                             margin=0.1,     #in_mask和out_mask之间的差距
+            #                                                                             topk=args.topk,
+            #                                                                             compare_sever_client_masks=True if args.compare_sever_client_masks == 1 else 0,
+            #                                                                             global_model=global_model,
+            #                                                                             batch_size=args.XAI_evaluate_batch_size,
+            #                                                                             output_path="./res/",
+            #                                                                             verbose=0,
+                                                                                        # is_mode_6=True if args.mode in [6] else False)
+ 
+            #     logger.add_scalar(f"user{idx}_XAI_ACC", XAI_ACC, epoch)
+            #     logger.add_scalar(f"user{idx}_in_mask_acc_mean", in_mask_acc_mean, epoch)
+            #     local_XAI_acc_list.append((idx,XAI_ACC))
+            #     in_mask_acc_mean_list.append((idx,in_mask_acc_mean))
             #######end XAI calc#####
 
             local_weights.append(copy.deepcopy(w))
@@ -337,7 +351,7 @@ if __name__ == '__main__':
                     }, is_best, idx, is_global=0)
             print(f'Global:{epoch}, user:{idx}, size:{len(user_groups[idx])} loss: {loss:.4f}')
             log.logger.debug(f'Global:{epoch}, user:{idx}, size:{len(user_groups[idx])} loss: {loss:.4f}')
-            optimizer.step() #not sure whether making it inside idx or outside idx
+            optimizer.step() #not sure whether making it inside idx or outside idx          #这句是做什么用的？？？？？？？？？？
 
         #####client selection to be added here######            #选择代码实现方式
         
@@ -351,11 +365,13 @@ if __name__ == '__main__':
         
         #先计算混合结果，再排序
         #混合acc和XAI进行衡量，此处实现的是平均值？？？？？？？？？？？？？？
-        if args.mode in [0,1,3,4]:
-            # mean_acc_and_XAI_acc = [(local_test_acc_list[i][0],(0.8*local_test_acc_list[i][1]+0.2*local_XAI_acc_list[i][1])) for i in range(len(local_test_acc_list))]    #计算结果：(idx, (acc+XAI_acc)/2)
-            mean_acc_and_XAI_acc = [(local_test_acc_list[i][0],local_test_acc_list[i][1]) for i in range(len(local_test_acc_list))]    #计算结果：(idx, (acc+XAI_acc)/2)
+        if args.mode in [0,6]:      #FedAvg是随机选择客户端
+            res = random.sample(local_test_acc_list,N)
+        elif args.mode in [1,3]:
+            # mean_acc_and_XAI_acc = [(local_test_acc_list[i][0],(0.8*local_test_acc_list[i][1]+0.2*local_XAI_acc_list[i][1])) for i in range(len(local_test_acc_list))] 
+            mean_acc_and_XAI_acc = [(local_test_acc_list[i][0],(local_test_acc_list[i][1]+local_XAI_acc_list[i][1])/2) for i in range(len(local_test_acc_list))]    #计算结果：(idx, (acc+XAI_acc)/2)
             res = sorted(mean_acc_and_XAI_acc, key=itemgetter(1), reverse = True)[:N]
-        elif args.mode == 2:
+        elif args.mode in [2,4,5]:
             res = sorted(local_test_acc_list, key=itemgetter(1), reverse = True)[:N]
         print("The sorted acc_list is : " + str(res))
         
@@ -366,7 +382,22 @@ if __name__ == '__main__':
         #####client selection end####################
 
         # update global weights
-        global_weights = average_weights(local_weights,selected_client_idx_list)
+        if args.is_aggregate_with_weights == 0: 
+            if args.mode in [6]:
+                global_weights = average_weights_for_model_with_global_mask(local_weights,selected_client_idx_list)
+            else:
+                global_weights = average_weights(local_weights,selected_client_idx_list)
+        elif args.is_aggregate_with_weights == 1: 
+            if args.mode in [6]:
+                global_weights = average_weights_for_model_with_global_mask(local_weights,
+                                                                            selected_client_idx_list,
+                                                                            [client_dataset_size[i] for i in range(len(local_weights)) if i in selected_client_idx_list])
+            else:
+                global_weights = average_weights(local_weights,
+                                                selected_client_idx_list,
+                                                [client_dataset_size[i] for i in range(len(local_weights)) if i in selected_client_idx_list])
+        else:
+            raise ValueError("args.mode有误。")
 
         # update global weights
         global_model.load_state_dict(global_weights)
@@ -375,32 +406,56 @@ if __name__ == '__main__':
         train_loss.append(loss_avg)
 
         # Calculate avg training accuracy over all users at every epoch
-        list_acc, list_loss = [], []
-        global_model.eval()
+        # list_acc, list_loss = [], []
+        # global_model.eval()
+        # for c in range(args.num_users):
+        #     local_model = LocalUpdate(args=args, dataset=train_dataset,
+        #                               idxs=user_groups[c], logger=logger)
+        #     acc, loss, _ = local_model.inference(model=global_model,global_round=1000,user=c)
+        #     list_acc.append(acc)
+        #     list_loss.append(loss)
+        # train_accuracy.append(sum(list_acc)/len(list_acc))
 
         # print global training loss after every 'i' rounds
-        test_acc, test_loss =  test_inference(args, global_model, test_dataset)
-        in_mask_acc_mean,out_mask_acc_mean,XAI_ACC=XAI_evaluate_with_global_masks(copy.deepcopy(lw),
-                                                                                        files,
-                                                                                        assetpath,
-                                                                                        dataset_name=args.dataset,
-                                                                                        device=device,
-                                                                                        XAI_labels=XAI_labels,
-                                                                                        classes=classes,
-                                                                                        nt_samples=args.XAI_evaluate_nt_samples,   #测试数值
-                                                                                        n_steps=args.XAI_evaluate_n_steps,      #测试数值
-                                                                                        margin=0.1,     #in_mask和out_mask之间的差距
-                                                                                        topk=args.topk,
-                                                                                        compare_sever_client_masks=True if args.compare_sever_client_masks == 1 else 0,
-                                                                                        global_model=global_model,
-                                                                                        batch_size=args.XAI_evaluate_batch_size,
-                                                                                        output_path="./res/",
-                                                                                        verbose=0)
+        if args.mode in [0,1,3,4,5]:  #只有mode==2才进行给test数据加上mask
+            test_acc, test_loss =  test_inference(args, global_model, test_dataset)   
+        elif args.mode == 2:
+            if epoch < args.mode2_end_epoch:
+                test_masks = generate_dataset_mask(global_model,
+                                                    dataset=test_dataset,
+                                                    idxs=[i for i in range(len(test_dataset))],
+                                                    batch_size=args.test_mask_batch_size,
+                                                    nt_samples=args.test_mask_nt_samples,
+                                                    n_steps=args.test_mask_n_steps,
+                                                    device=device,
+                                                    topk = args.topk)     #其实这个东西可以是服务器随着测试集发送过来。，因此放到遍历客户端的for循环之外，只执行1次即可
+            test_acc, test_loss =  test_inference_with_mask(args, model=global_model, test_dataset=test_dataset, test_masks=test_masks)
+        elif args.mode == 6:
+            test_acc, test_loss =  test_inference_with_global_mask(
+                args, global_model, test_dataset=test_dataset) 
         
+        if args.mode in [0,1,3,4,5,6]:  #mode == 2不需要进行该评估；mode == 6 能够放在这里，是因为测试过程直接用原始图片进行测试，而不是带mask的图片 
+            in_mask_acc_mean,out_mask_acc_mean,XAI_ACC=XAI_evaluate_with_global_masks(global_model,
+                                                                                            files,
+                                                                                            assetpath,
+                                                                                            dataset_name=args.dataset,
+                                                                                            device=device,
+                                                                                            XAI_labels=XAI_labels,
+                                                                                            classes=classes,
+                                                                                            nt_samples=args.XAI_evaluate_nt_samples,   #测试数值
+                                                                                            n_steps=args.XAI_evaluate_n_steps,      #测试数值
+                                                                                            margin=0.1,     #in_mask和out_mask之间的差距
+                                                                                            topk=args.topk,
+                                                                                            compare_sever_client_masks=0,
+                                                                                            batch_size=args.XAI_evaluate_batch_size,
+                                                                                            output_path=f"./res/epoch_{epoch}/",
+                                                                                            verbose=0,
+                                                                                            is_mode_6=True if args.mode in [6] else False)
+            test_in_mask_acc_mean_list.append(in_mask_acc_mean)
+            test_XAI_ACC_list.append(XAI_ACC)
+            
         test_loss_list.append(test_loss)
         test_acc_list.append(test_acc)
-        test_in_mask_acc_mean_list.append(in_mask_acc_mean)
-        test_XAI_ACC_list.append(XAI_ACC)
         if test_acc > best_test_acc:
             best_test_acc = test_acc
             is_best = 1
@@ -449,8 +504,8 @@ if __name__ == '__main__':
         format(args.dataset, args.model, args.epochs,  args.iid,
                args.local_ep, args.local_bs)
 
-    with open(file_name, 'wb') as f:
-        pickle.dump([train_loss, train_accuracy], f)
+    # with open(file_name, 'wb') as f:
+    #     pickle.dump([train_loss, train_accuracy], f)
 
     print('\n Total Run Time: {0:0.4f}'.format(time.time()-start_time))
     log.logger.debug('\n Total Run Time: {0:0.4f}'.format(time.time()-start_time))

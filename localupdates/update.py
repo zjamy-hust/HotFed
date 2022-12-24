@@ -153,6 +153,46 @@ class LocalUpdate(object):
             print(f'Global:{global_round}, user:{user}, train accuracy:{100*accuracy:.2f}%, loss:{loss:.4f}, correct:{correct:.0f}, total:{total:.0f}, best local acc: {100*self.best_local_acc:.2f}%')
         return accuracy, loss, is_best
 
+    def test_inference_with_global_mask(self, model, global_round=1000,user=1000):
+
+        """ Returns the inference accuracy and loss.
+        """
+
+        model.eval()
+        loss, total, correct, is_best = 0.0, 0.0, 0.0, 1
+
+        with torch.no_grad():
+            for batch_idx, (images, labels, idxs) in enumerate(self.valloader):
+                images, labels = images.to(self.device), labels.to(self.device)
+                model.zero_grad()
+    
+                # Inference
+                outputs = model(images)     #不加mask，直接用原图进行测试
+                batch_loss = self.criterion(outputs, labels)
+                loss += batch_loss.item()
+    
+                # Prediction
+                _, pred_labels = torch.max(outputs, 1)
+                pred_labels = pred_labels.view(-1)
+                correct += torch.sum(torch.eq(pred_labels, labels)).item()
+                total += len(labels)
+
+        accuracy = correct/total
+            # Save checkpoint.
+        if accuracy > self.best_local_acc:
+            # print('Saving..')
+            # state = {'model_state_dict':model.state_dict(),
+            #         'loss':loss
+            # }
+            # if not os.path.isdir('checkpoints'):
+            #     os.mkdir('checkpoints')
+            # torch.save(state, './checkpoints/ckpt_best_local.pth')
+            self.best_local_acc = accuracy
+            is_best = 1
+        if self.args.verbose :
+            print(f'Global:{global_round}, user:{user}, train accuracy:{100*accuracy:.2f}%, loss:{loss:.4f}, correct:{correct:.0f}, total:{total:.0f}, best local acc: {100*self.best_local_acc:.2f}%')
+        return accuracy, loss, is_best
+    
     def update_weights_fedprox(self, model, global_round, user, global_model):
         # Set mode to train model
         epoch_loss = []
@@ -180,6 +220,7 @@ class LocalUpdate(object):
                 # print(len(images), len(labels))
                 model.zero_grad()
                 log_probs = model(images)
+                # loss = self.criterion(log_probs, labels) + self.args.weights_regularization_lambda * weights_norm_2L_regularization(global_model.state_dict(), model.state_dict())
                 a_loss = self.criterion(log_probs, labels)
                 b_loss = weights_norm_2L_regularization(global_model.state_dict(), model.state_dict())
                 if a_loss.item() > a_loss_max:
@@ -331,6 +372,7 @@ class LocalUpdate(object):
 
                 loss = a_loss + rate * b_loss   #只回传一次梯度。
                 
+                # loss = self.criterion(log_probs_with_masks, labels) + mse_loss_lambda * F.mse_loss(log_probs_with_masks,log_probs.detach())   #只回传一次梯度。
                 # optimizer.zero_grad()
                 loss.backward()
                
@@ -354,9 +396,57 @@ class LocalUpdate(object):
 
         return best_model.state_dict(), sum(best_epoch_loss) / len(best_epoch_loss), best_model
 
+    def update_weights_with_global_mask(self, model, global_round, user):
+        # Set mode to train model
+        epoch_loss = []
+
+        # Set optimizer for the local updates
+        if self.args.optimizer == 'sgd':
+            optimizer = torch.optim.SGD(model.parameters(), lr=self.args.lr,
+                                        momentum=0.9, weight_decay=5e-4)
+        elif self.args.optimizer == 'adam':
+            optimizer = torch.optim.Adam(model.parameters(), lr=self.args.lr,
+                                         weight_decay=1e-4)
+        scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=self.args.local_ep)
+
+        loader = self.trainloader
+            
+        loss_epochs=0
+        for iter in range(self.args.local_ep):
+            is_best = 0
+            batch_loss = []
+            model.train()
+            
+            for batch_idx, (images, labels, idxs) in enumerate(loader):
+                images, labels = images.to(self.device), labels.to(self.device)
+                # print(len(images), len(labels))
+                model.zero_grad()
+                mask = model.get_masks(images)
+                images_ = images * mask[:,:,:,:,1]
+                log_probs = model(images_)
+                loss = self.criterion(log_probs, labels) + torch.mean(mask[:,:,:,:,1])
+                # optimizer.zero_grad()
+                loss.backward()
+               
+                self.logger.add_scalar(f'user{user}_train_loss', loss.item(),loss_epochs)
+                batch_loss.append(loss.item())
+                optimizer.step()
+                loss_epochs+=1
+                
+            if self.args.verbose :
+                print('| Global Round : {} | Local Epoch : {} | User ID: {} | Data size: {} \tLoss: {:.4f}'.format(
+                        global_round, iter, user, len(loader.dataset), loss.item()))
+            epoch_loss.append(sum(batch_loss)/len(batch_loss))
+            _, _, is_best = self.test_inference_with_global_mask(model, global_round, user)
+            if is_best > 0:
+                best_model = copy.deepcopy(model)
+                best_epoch_loss = epoch_loss
+                best_loss = loss
+            scheduler.step()
+
+        return best_model.state_dict(), sum(best_epoch_loss) / len(best_epoch_loss), best_model
     
-    
-def generate_dataset_mask(local_init_model, dataset, idxs, batch_size, nt_samples, n_steps, device, topk):
+def generate_dataset_mask(local_init_model, dataset, idxs, batch_size, nt_samples, n_steps, device, topk):   
     """
     利用服务器发来的模型产生mask
     
@@ -485,6 +575,53 @@ def test_inference_with_mask(args, model, test_dataset, test_masks):
             total += len(labels)
     
     accuracy = correct/total
+    if accuracy > best_global_acc:
+            # print('Saving..')
+            # state = {
+            #     'net': net.state_dict(),
+            #     'acc': acc,
+            #     'epoch': epoch,
+            # }
+            # if not os.path.isdir('checkpoints'):
+            #     os.mkdir('checkpoints')
+            # torch.save(state, './checkpoints/ckpt_best_global.pth')
+            best_global_acc = accuracy
+    print(f'test-full accuracy:{100*accuracy:.2f}%, loss:{loss:.4f}, correct:{correct:.0f}, total:{total:.0f}, best_global_acc:{100*best_global_acc:.2f}%')
+    return accuracy, loss
+
+def test_inference_with_global_mask(args, model, test_dataset):
+    """ Returns the test accuracy and loss.
+    """
+    global best_global_acc
+
+    model.eval()
+    loss, total, correct = 0.0, 0.0, 0.0
+
+    device = (f'cuda:{str(args.gpu)}')  if torch.cuda.is_available() else 'cpu'
+    # print("device",device)
+    criterion = nn.CrossEntropyLoss().to(device)
+    testloader = DataLoader(DatasetSplit(test_dataset,[i for i in range(len(test_dataset))]), batch_size=128,
+                            shuffle=False)
+    batch_num = 0
+    with torch.no_grad():
+        for batch_idx, (images, labels, idxs) in enumerate(testloader):
+            batch_num += 1
+            images, labels = images.to(device), labels.to(device)
+            model.zero_grad()
+    
+            # Inference
+            outputs = model(images)     #直接采用原图进行测试
+            batch_loss = criterion(outputs, labels)
+            loss += batch_loss.item()
+    
+            # Prediction
+            _, pred_labels = torch.max(outputs, 1)
+            pred_labels = pred_labels.view(-1)
+            correct += torch.sum(torch.eq(pred_labels, labels)).item()
+            total += len(labels)
+    
+    accuracy = correct/total
+    loss = loss/batch_num
     if accuracy > best_global_acc:
             # print('Saving..')
             # state = {

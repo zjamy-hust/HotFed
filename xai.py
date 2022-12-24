@@ -1,4 +1,5 @@
 import matplotlib.pyplot as plt
+from matplotlib.colors import Normalize
 import numpy as np
 import math
 
@@ -45,7 +46,8 @@ device = (f'cuda:{str(args.gpu)}')  if torch.cuda.is_available() else 'cpu'
 run=1
 
 
-model_path="save_checkpoints/xai_analysis/global.iid1.16_15.pth.tar"
+# model_path="save_checkpoints/xai_analysis/global.iid1.16_15.pth.tar"
+# model_path="save_checkpoints/resnet18_global/global.iid0.gpu0.mode5.global_epoch20.local_ep5.num_users3.ckpt.pth.tar"
 asset_path='assets'
 
 
@@ -89,7 +91,8 @@ def XAI_evaluate_with_global_masks(local_model,
                                    global_model=None, 
                                    batch_size=1,
                                    output_path="./",
-                                   verbose=1):
+                                   verbose=1,
+                                   is_mode_6=False):
     """     重写XAI_evaluate，使其能够根据global model产生mask，从而实现global model和local model产生的mask进行对比
     
     与原始XAI_evaluate之间的差别：
@@ -120,6 +123,9 @@ def XAI_evaluate_with_global_masks(local_model,
     if len(test_files_list_jpg) != len(XAI_labels):
         raise ValueError("长度不匹配。")
     
+    if os.path.exists(output_path) == False:
+        os.makedirs(output_path)
+    
     torch.cuda.empty_cache()
     
     
@@ -138,8 +144,8 @@ def XAI_evaluate_with_global_masks(local_model,
             mode = torchvision.io.image.ImageReadMode.RGB
         elif dataset_name == "MNIST":
             dataset_size = 28
-            normalize_mean = [0.4914]
-            normalize_std = [0.2023]
+            normalize_mean = [0.1307] 
+            normalize_std = [0.3081]
             mode = torchvision.io.image.ImageReadMode.GRAY
         else:
             raise ValueError("dataset_name有误。")
@@ -161,7 +167,7 @@ def XAI_evaluate_with_global_masks(local_model,
             print("mask_im_name",mask_im_name)
         truth_mask_tensor = read_image(str(Path(path)/mask_im_name),mode)
         truth_mask = cv2.imread(str(Path(path)/mask_im_name),cv2.IMREAD_GRAYSCALE)
-        truth_mask_np=truth_mask_tensor.numpy()         #为什么是3通道？？？？？？？？？
+        truth_mask_np=truth_mask_tensor.numpy()   
         
         image_masks_by_human.append((im_name, truth_mask_np, truth_mask))       #貌似truth_mask_np用不上？？？？？？？？？
         
@@ -199,6 +205,8 @@ def XAI_evaluate_with_global_masks(local_model,
         input_asset_norm=images.to(device)
         examples_num = input_asset_norm.shape[0]
         
+        if is_mode_6 == True:
+            localmodel_mask = local_model.get_masks(input_asset_norm)
         output_asset = local_model(input_asset_norm)
         _, predicted_asset = torch.max(output_asset, 1)
         
@@ -254,37 +262,38 @@ def XAI_evaluate_with_global_masks(local_model,
                 correct = correct+1
             
             torch.cuda.empty_cache()
-            # fig, (orig, mask, attr, attr_mask, attr_outmask) = plt.subplots(1, 5)
+            fig, (orig, mask, attr, attr_mask, attr_outmask) = plt.subplots(1, 5)
             # orig.axis('off')
             # mask.axis('off')
             # attr.axis('off')
             # attr_mask.axis('off')
             # attr_outmask.axis('off')
-            # orig.imshow(np.transpose(npimg_list[example_index_in_all], (1, 2, 0)))
-            # default_cmap = LinearSegmentedColormap.from_list(
-            #     "RdWhGn", ["red", "white", "green"]
-            # )
-            # vmin, vmax = -1, 1
-            # attr.imshow(attr_hard_masks,cmap=default_cmap,vmin=vmin,vmax=vmax)
-            # mask.imshow(truth_mask,cmap="Blues",vmin=0,vmax=1)
-            # attr.imshow(attr_hard_masks,cmap=default_cmap,vmin=vmin,vmax=vmax)
-            # mask.imshow(truth_mask,cmap="Blues",vmin=0,vmax=1)
-            # attr_mask.imshow(masked,cmap="Greens",vmin=0,vmax=1)
-            # attr_outmask.imshow(out_mask,cmap="Reds",vmin=0,vmax=1)
-            # fig.show()
-            # fig.savefig(output_path+image_masks_by_human[example_index_in_all][0][:-4]+"_result.jpg")
+            orig.imshow(np.transpose(npimg_list[example_index_in_all], (1, 2, 0)))
+            default_cmap = LinearSegmentedColormap.from_list(
+                "RdWhGn", ["red", "white", "green"]
+            )
+            vmin, vmax = -1, 1
+            mask.imshow(truth_mask,cmap="Blues",vmin=0,vmax=1)
+            attr.imshow(attr_hard_masks,cmap=default_cmap,vmin=vmin,vmax=vmax)
+            attr_mask.imshow(masked,cmap="Greens",vmin=0,vmax=1)
+            attr_outmask.imshow(out_mask,cmap="Reds",vmin=0,vmax=1)
+            fig.show()
+            fig.savefig(output_path+image_masks_by_human[example_index_in_all][0][:-4]+"_result.jpg")
+            
+            if is_mode_6 == True:
+                fig, (orig, localmodel_mask_) = plt.subplots(1, 2)
+                orig.imshow(np.transpose(npimg_list[example_index_in_all], (1, 2, 0)),cmap=default_cmap,vmin=-1,vmax=1)
+                localmodel_mask_.imshow(localmodel_mask[i][0,:,:,1].cpu().data.numpy(),cmap=default_cmap,vmin=-1,vmax=1)
+                fig.colorbar(plt.cm.ScalarMappable(cmap=default_cmap,norm=Normalize(vmin=-1., vmax=1.)))
+                fig.savefig(output_path+image_masks_by_human[example_index_in_all][0][:-4]+"_local_model_mask.jpg")
             
             #显示globale和local的mask
             if compare_sever_client_masks == 1:
-                fig, (orig, local_mask_, global_mask_) = plt.subplots(1, 3)
-                orig.axis('off')
-                mask.axis('off')
-                attr.axis('off')
-                attr_mask.axis('off')
-                attr_outmask.axis('off')
+                fig, (orig, local_mask_, global_mask_,localmodel_mask_) = plt.subplots(1, 4)
                 orig.imshow(np.transpose(npimg_list[example_index_in_all], (1, 2, 0)))
                 local_mask_.imshow(test_images_masks_by_local_model[example_index_in_all][0].cpu().data.numpy())
                 global_mask_.imshow(test_images_masks_by_global_model[example_index_in_all][0].cpu().data.numpy())
+                localmodel_mask_.imshow(localmodel_mask[example_index_in_all][0,:,:,1].cpu().data.numpy())
                 fig.savefig(output_path+image_masks_by_human[example_index_in_all][0][:-4]+"_compare_global_local.jpg")
             plt.close()
 
@@ -296,91 +305,56 @@ def XAI_evaluate_with_global_masks(local_model,
         print("in_mask_acc_mean",in_mask_acc_mean,"out_mask_acc_mean",out_mask_acc_mean,"XAI ACC", correct/len(XAI_labels))
     return in_mask_acc_mean,out_mask_acc_mean,correct/len(XAI_labels)
 
-
 if __name__=="__main__":
-    class BasicBlock(nn.Module):
-        expansion = 1
+    from models.models_resnet import ResNet18
 
-        def __init__(self, in_planes, planes, stride=1):
-            super(BasicBlock, self).__init__()
-            self.conv1 = nn.Conv2d(
-                in_planes, planes, kernel_size=3, stride=stride, padding=1, bias=False)
-            self.bn1 = nn.BatchNorm2d(planes)
-            self.conv2 = nn.Conv2d(planes, planes, kernel_size=3,
-                                   stride=1, padding=1, bias=False)
-            self.bn2 = nn.BatchNorm2d(planes)
-            self.shortcut = nn.Sequential()
-            if stride != 1 or in_planes != self.expansion*planes:
-                self.shortcut = nn.Sequential(
-                    nn.Conv2d(in_planes, self.expansion*planes,
-                              kernel_size=1, stride=stride, bias=False),
-                    nn.BatchNorm2d(self.expansion*planes)
-                )
-
-        def forward(self, x):
-            out = F.relu(self.bn1(self.conv1(x)))
-            out = self.bn2(self.conv2(out))
-            out += self.shortcut(x)
-            out = F.relu(out)
-            return out
-
-    class ResNet(nn.Module):
-        def __init__(self, block, num_blocks, num_classes=100):
-            super(ResNet, self).__init__()
-            self.in_planes = 64
-
-            self.conv1 = nn.Conv2d(3, 64, kernel_size=3,
-                                   stride=1, padding=1, bias=False)
-            self.bn1 = nn.BatchNorm2d(64)
-            self.layer1 = self._make_layer(block, 64, num_blocks[0], stride=1)
-            self.layer2 = self._make_layer(block, 128, num_blocks[1], stride=2)
-            self.layer3 = self._make_layer(block, 256, num_blocks[2], stride=2)
-            self.layer4 = self._make_layer(block, 512, num_blocks[3], stride=2)
-            self.linear = nn.Linear(512*block.expansion, num_classes)
-
-        def _make_layer(self, block, planes, num_blocks, stride):
-            strides = [stride] + [1]*(num_blocks-1)
-            layers = []
-            for stride in strides:
-                layers.append(block(self.in_planes, planes, stride))
-                self.in_planes = planes * block.expansion
-            return nn.Sequential(*layers)
-
-        def forward(self, x):
-            out = F.relu(self.bn1(self.conv1(x)))
-            out = self.layer1(out)
-            out = self.layer2(out)
-            out = self.layer3(out)
-            out = self.layer4(out)
-            out = F.avg_pool2d(out, 4)
-            out = out.view(out.size(0), -1)
-            out = self.linear(out)
-            return out
-
-    def ResNet18():
-        return ResNet(BasicBlock, [2, 2, 2, 2])
-
-
-    # To prepare the XAI assets
-    classes = ('plane', 'car', 'bird', 'cat',
-               'deer', 'dog', 'frog', 'horse', 'ship', 'truck')
-    # classes = ('plane' 0, 'car' 1, 'bird' 2, 'cat' 3,
-    #            'deer' 4, 'dog' 5, 'frog' 6, 'horse' 7, 'ship' 8, 'truck' 9)
-    XAI_labels=[7, 8, 2, 2, 0, 5, 7, 9, 2, 8, 8, 2, 8, 2, 5, 8, 0, 7, 5, 5,1,1,3,3,4,4,6,6,9,3 ]
-    assetpath = str(Path(asset_path)/'folder')
+    asset_path='assets'
+    # classes = ('plane', 'car', 'bird', 'cat',
+    #     'deer', 'dog', 'frog', 'horse', 'ship', 'truck')
+    # # classes = ('plane' 0, 'car' 1, 'bird' 2, 'cat' 3,
+    # #            'deer' 4, 'dog' 5, 'frog' 6, 'horse' 7, 'ship' 8, 'truck' 9)
+    # XAI_labels=[7, 8, 2, 2, 0, 5, 7, 9, 2, 8, 8, 2, 8, 2, 5, 8, 0, 7, 5, 5,1,1,3,3,4,4,6,6,9,3 ]
+    # assetpath = str(Path(asset_path)/'cifar_asset')
+    # print("assetpath",assetpath)
+    # files = os.listdir(assetpath)        
+    
+    classes = ('0', '1', '2', '3', '4', '5', '6', '7', '8', '9')
+    assetpath = str(Path(asset_path)/'mnist_asset')
+    with open(assetpath+"/labels.txt",'r') as f:
+        read_res = f.readlines()
+        XAI_labels = [int(line.strip()) for line in read_res]
+    print("XAI labels", XAI_labels)
     print("assetpath",assetpath)
-    files = os.listdir(assetpath)
+    files = os.listdir(assetpath)   
 
     #To prepare network
     torch.cuda.set_device(args.gpu)
-    net = ResNet18()
+    num_classes = 10
+    input_channel = 3
+    net = ResNet18(num_classes, input_channel)
     criterion = nn.CrossEntropyLoss()
     optimizer = optim.SGD(net.parameters(), lr=0.001, momentum=0.9)
-    checkpoint = torch.load(model_path)
-    net.load_state_dict(checkpoint['state_dict'])
+    # checkpoint = torch.load(model_path)
+    # net.load_state_dict(checkpoint['state_dict'])
     net.to(device)
     net.eval()
 
-    a,b,c = XAI_evaluate(net,files,assetpath,1,1,device=device,XAI_labels=XAI_labels, classes=classes)
-
+    # a,b,c = XAI_evaluate(net,files,assetpath,1,1,device=device,XAI_labels=XAI_labels, classes=classes)
+    a,b,c=XAI_evaluate_with_global_masks(net,
+                                        files,
+                                        assetpath,
+                                        dataset_name="MNIST",
+                                        device=device,
+                                        XAI_labels=XAI_labels,
+                                        classes=classes,
+                                        nt_samples=5,   #测试数值
+                                        n_steps=5,      #测试数值
+                                        margin=0.1,     #in_mask和out_mask之间的差距
+                                        topk=0.1,
+                                        compare_sever_client_masks=0,
+                                        batch_size=32,
+                                        output_path=f"./res/epoch_-1/",
+                                        verbose=0,
+                                        is_mode_6=False)
+    
     print("a",a,"b",b,"c",c)
